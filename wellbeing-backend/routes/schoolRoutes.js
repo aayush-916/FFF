@@ -1,0 +1,48 @@
+// routes/schoolRoutes.js
+
+const express = require('express');
+const router = express.Router();
+const schoolController = require('../controllers/schoolController');
+
+// Import Middlewares
+const { protect } = require('../middlewares/authMiddleware');
+const { allowRoles } = require('../middlewares/roleMiddleware');
+
+// 1. Require authentication for ALL routes in this file
+router.use(protect);
+
+router.get(
+    '/classes', 
+    protect, 
+    allowRoles('teacher', 'school_admin', 'school_super_admin'), 
+    schoolController.getSchoolClasses
+);
+
+// 2. Read operations (GET) allowed for ALL authenticated users
+router.get('/', schoolController.getSchools);
+router.get('/:id', schoolController.getSchool);
+
+// 3. Write operations (POST, PUT, DELETE) restricted to 'ngo_super_admin' only
+router.post('/', allowRoles('ngo_super_admin'), schoolController.createSchool);
+router.put('/:id', allowRoles('ngo_super_admin'), schoolController.updateSchool);
+router.delete('/:id', allowRoles('ngo_super_admin'), schoolController.deleteSchool);
+
+router.post('/setup-classes', protect, allowRoles('school_super_admin'), schoolController.setupClasses);
+
+// Add these inside routes/schoolRoutes.js
+
+router.post(
+    '/classes', 
+    protect, 
+    allowRoles('school_super_admin', 'school_admin'), 
+    schoolController.addClass
+);
+
+router.delete(
+    '/classes/:id', 
+    protect, 
+    allowRoles('school_super_admin', 'school_admin'), 
+    schoolController.deleteClass
+);
+
+module.exports = router;
