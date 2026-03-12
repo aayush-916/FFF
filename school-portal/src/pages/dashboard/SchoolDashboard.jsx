@@ -1,134 +1,180 @@
 import { useState, useEffect } from 'react';
-import { Users, Activity, BookOpen, TrendingUp, Calendar, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, BookOpen, CheckCircle, TrendingUp, Activity, Layers } from 'lucide-react';
 import api from '../../services/api';
 
 const SchoolDashboard = () => {
-  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+  // 2. Initialize navigate
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         const response = await api.get('/dashboard/school');
-        // Handle varying response structures securely
-        setData(response.data.data || response.data);
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
-        // If a teacher tries to access this and gets a 403, show a specific message
-        if (err.response?.status === 403) {
-          setError("Access Denied: Only School Administrators can view this dashboard.");
-        } else {
-          setError("Failed to load school analytics. Please try again.");
+        const dashboardData = response.data.data || response.data;
+        setData(dashboardData);
+
+        // 3. ONBOARDING CHECK: Are there any classes?
+        // We make a quick call to the classes endpoint to check. 
+        // If it returns an empty array, they are brand new!
+        const classRes = await api.get('/school/classes').catch(() => ({ data: [] }));
+        const existingClasses = classRes.data.data || classRes.data || [];
+        
+        if (existingClasses.length === 0) {
+          // Redirect them to the classes page and tell it to open the modal
+          navigate('/admin/classes?setup=true');
         }
+
+      } catch (err) {
+        console.error("Dashboard error:", err);
       } finally {
         setLoading(false);
       }
     };
-
     fetchDashboardData();
-  }, []);
+  }, [navigate]);
 
-  if (loading) {
-    return (
-      <div className="space-y-6 animate-pulse max-w-md mx-auto md:max-w-none pb-8">
-        <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
-        <div className="h-4 bg-gray-200 rounded w-3/4 mb-6"></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-28 bg-white rounded-xl shadow-sm border border-gray-100"></div>)}
-        </div>
-        <div className="h-64 bg-white rounded-xl shadow-sm border border-gray-100 mt-6"></div>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-8 text-center text-gray-500 animate-pulse">Loading school data...</div>;
 
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm flex items-start gap-2 border border-red-100 max-w-md mx-auto md:max-w-none">
-        <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-        <p className="font-medium">{error}</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6 max-w-md mx-auto md:max-w-none pb-8">
+    <div className="space-y-6 pb-10 max-w-6xl mx-auto">
       
-      {/* Header */}
+      {/* HEADER */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">School Overview</h1>
-        <p className="text-sm text-gray-500 mt-1">Track school-wide wellbeing program performance.</p>
+        <h1 className="text-2xl font-bold text-gray-900">School Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">Global overview of your school's wellbeing program.</p>
       </div>
 
-      {/* Metrics Grid (Mobile: 2 cols, Desktop: 4 cols) */}
+      {/* 4 MAIN METRICS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-          <Users className="h-6 w-6 text-blue-500 mb-3" />
-          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Total Teachers</p>
-          <p className="text-2xl font-black text-gray-900">{data?.totalTeachers || 0}</p>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center transition-shadow hover:shadow-md">
+          <Users className="h-6 w-6 text-blue-500 mb-2" />
+          <p className="text-[10px] sm:text-xs text-gray-500 font-bold uppercase tracking-wider">Total Teachers</p>
+          <p className="text-2xl font-black text-gray-900">{data?.totalTeachers || 0}</p> 
         </div>
         
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-          <Activity className="h-6 w-6 text-green-500 mb-3" />
-          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Total Sessions</p>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center transition-shadow hover:shadow-md">
+          <Activity className="h-6 w-6 text-green-500 mb-2" />
+          <p className="text-[10px] sm:text-xs text-gray-500 font-bold uppercase tracking-wider">Total Sessions</p>
           <p className="text-2xl font-black text-gray-900">{data?.totalSessions || 0}</p>
         </div>
         
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-          <BookOpen className="h-6 w-6 text-orange-500 mb-3" />
-          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Total Lessons</p>
-          <p className="text-2xl font-black text-gray-900">{data?.totalLessons || 0}</p>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center transition-shadow hover:shadow-md">
+          <BookOpen className="h-6 w-6 text-purple-500 mb-2" />
+          <p className="text-[10px] sm:text-xs text-gray-500 font-bold uppercase tracking-wider">Lessons Completed</p>
+          <p className="text-2xl font-black text-gray-900">{data?.lessonsCompleted || 0}</p>
         </div>
-        
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
-          <TrendingUp className="h-6 w-6 text-purple-500 mb-3" />
-          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Habit Completion</p>
-          <p className="text-2xl font-black text-gray-900">{data?.habitCompletion || 0}%</p>
+
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center transition-shadow hover:shadow-md">
+          <TrendingUp className="h-6 w-6 text-orange-500 mb-2" />
+          <p className="text-[10px] sm:text-xs text-gray-500 font-bold uppercase tracking-wider">Habit Completion</p>
+          <p className="text-2xl font-black text-gray-900">{data?.overallHabitCompletion || 0}%</p>
         </div>
       </div>
 
-      {/* Recent Sessions List */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4 px-1">Recent Sessions</h2>
-        <div className="space-y-3">
+      {/* CHARTS ROW */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* GRAPH 1: Lessons Completed by Class */}
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+            <Layers className="w-5 h-5 text-blue-500" /> Lessons Completed by Class
+          </h3>
+          <div className="space-y-5">
+            
+            {/* If there is real data, map through it */}
+            {data?.classPerformance && data.classPerformance.length > 0 ? (
+              data.classPerformance.map((item, index) => {
+                const visualWidth = Math.min((item.completed / 20) * 100, 100); 
+                
+                return (
+                  <div key={index} className="flex items-center gap-4">
+                    <span className="w-16 text-xs font-bold text-gray-700">{item.name}</span>
+                    <div className="flex-1 bg-blue-50/50 rounded-full h-3.5 overflow-hidden flex items-center">
+                      <div 
+                        className="h-full rounded-full bg-blue-500 transition-all duration-1000" 
+                        style={{ width: `${visualWidth}%` }}
+                      ></div>
+                    </div>
+                    <span className="w-8 text-right text-sm font-black text-gray-900">{item.completed}</span>
+                  </div>
+                );
+              })
+            ) : (
+              // If the array is empty, show the empty state message!
+              <div className="h-32 flex flex-col items-center justify-center text-gray-400">
+                <BookOpen className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm">No class data available yet.</p>
+              </div>
+            )}
+
+          </div>
+        </div>
+
+        {/* GRAPH 2: Domain Progress (REAL DATA) */}
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-500" /> Domain Progress
+          </h3>
+          <div className="space-y-5">
+            {data?.domainProgress && data.domainProgress.length > 0 ? (
+              data.domainProgress.map((domain, index) => (
+                <div key={index}>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="font-bold text-gray-700 uppercase text-xs">{domain.domain}</span>
+                    <span className="text-green-600 font-black">{domain.percentage}%</span>
+                  </div>
+                  <div className="w-full bg-green-50/50 rounded-full h-3.5 overflow-hidden">
+                    <div 
+                      className="bg-green-500 h-full rounded-full transition-all duration-1000" 
+                      style={{ width: `${domain.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="h-32 flex flex-col items-center justify-center text-gray-400">
+                <Activity className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm">No domain data available yet.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      {/* RECENT SESSIONS ROW */}
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <CheckCircle className="w-5 h-5 text-purple-500" /> Recent School Activity
+        </h3>
+        <div className="space-y-2">
           {data?.recentSessions && data.recentSessions.length > 0 ? (
             data.recentSessions.map((session, index) => (
-              <div key={session.id || index} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-shadow hover:shadow-md">
-                
-                <div className="flex items-start gap-4">
-                  <div className="bg-blue-50 text-blue-600 p-3 rounded-lg shrink-0">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-base">
-                      {session.lesson_title || session.lessonName || session.title || 'Unknown Lesson'}
-                    </h3>
-                    <p className="text-sm font-medium text-gray-600 mt-1">
-                      {session.teacher_name && <span className="mr-2">{session.teacher_name} &bull;</span>}
-                      Class {session.class_number || session.classNumber} - Sec {session.section}
-                    </p>
-                  </div>
+              <div key={index} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl border border-transparent hover:border-gray-100 transition-colors">
+                <div>
+                  <h4 className="font-bold text-gray-900 text-sm">
+                    {session.lesson_title || 'Unknown Lesson'}
+                  </h4>
+                  <p className="text-xs text-gray-500 font-medium mt-0.5">
+                    Class {session.class_number} &bull; Sec {session.section}
+                  </p>
                 </div>
-                
-                <div className="flex items-center gap-2 sm:justify-end text-xs text-gray-500 font-medium bg-gray-50 sm:bg-transparent p-2 sm:p-0 rounded-lg">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  {new Date(session.created_at || session.date || new Date()).toLocaleDateString('en-GB', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric'
-                  })}
+                <div className="text-right">
+                  <span className="text-[10px] font-bold tracking-wider text-purple-700 bg-purple-50 px-2 py-1 rounded-lg uppercase">
+                    Conducted
+                  </span>
+                  <p className="text-[11px] font-bold text-gray-400 mt-2">
+                    {new Date(session.created_at).toLocaleDateString('en-GB')}
+                  </p>
                 </div>
-
               </div>
             ))
           ) : (
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mb-4">
-                <Activity className="w-8 h-8" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-1">No sessions recorded yet.</h3>
-              <p className="text-sm text-gray-500">Teachers have not submitted any sessions.</p>
-            </div>
+            <p className="text-sm text-gray-500 text-center py-6">No recent sessions recorded.</p>
           )}
         </div>
       </div>

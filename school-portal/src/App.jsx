@@ -7,8 +7,7 @@ import Layout from './components/layout/Layout';
 
 // Dashboards
 import Login from './pages/auth/Login';
-import TeacherDashboard from './pages/dashboard/TeacherDashboard';
-import SchoolDashboard from './pages/dashboard/SchoolDashboard';
+import DashboardMain from './pages/dashboard/DashboardMain';
 
 // Teaching Pages
 import LessonBrowser from './pages/lessons/LessonBrowser';
@@ -17,45 +16,25 @@ import SessionHistory from './pages/sessions/SessionHistory';
 
 // Admin Pages
 import AssessmentPage from './pages/assessments/AssessmentPage';
-import SchoolSetup from './pages/setup/SchoolSetup'; // Make sure this file exists
-import Teachers from './pages/admin/Teachers';       // Make sure this file exists
-import Classes from './pages/admin/Classes';         // Make sure this file exists
+import SchoolSetup from './pages/setup/SchoolSetup';
+import Teachers from './pages/admin/Teachers';
+import Classes from './pages/admin/Classes';
 
 // Shared Pages
 import Profile from './pages/profile/Profile';
 
 // --------------------------------------------------------
-// 1. Dashboard Router (Auto-redirects based on role)
-// --------------------------------------------------------
-const DashboardRouter = () => {
-  const { user } = useAuth();
-  
-  if (user?.role === 'school_super_admin' || user?.role === 'school_admin') {
-    return <SchoolDashboard />;
-  }
-  
-  return <TeacherDashboard />;
-};
-
-// --------------------------------------------------------
-// 2. Role Wrappers
+// 1. Role Wrappers
 // --------------------------------------------------------
 
-// --------------------------------------------------------
-// 2. Role Wrappers
-// --------------------------------------------------------
-
-// Allows: teacher, school_admin | Blocks: school_super_admin
 // Allows: teacher, school_admin | Blocks: school_super_admin
 const TeacherRoute = () => {
   const { user } = useAuth();
   
-  // This completely sanitizes the role from the DB to prevent mismatches
+  // Completely sanitizes the role from the DB to prevent mismatches
   const role = String(user?.role || '').toLowerCase().trim(); 
-  
   const allowedRoles = ['teacher', 'school_admin'];
   
- 
   if (!allowedRoles.includes(role)) {
     return <Navigate to="/" replace />; // Kick back to dashboard
   }
@@ -66,18 +45,20 @@ const TeacherRoute = () => {
 // Allows: school_super_admin, school_admin | Blocks: teacher
 const AdminRoute = () => {
   const { user } = useAuth();
-  // Add .toLowerCase() here too
-  const role = user?.role?.toLowerCase(); 
+  
+  // Sanitizes the role here too for safety
+  const role = String(user?.role || '').toLowerCase().trim(); 
   const allowedRoles = ['school_super_admin', 'school_admin'];
   
   if (!allowedRoles.includes(role)) {
     return <Navigate to="/" replace />; // Kick back to dashboard
   }
+  
   return <Outlet />;
 };
 
 // --------------------------------------------------------
-// 3. Main Application Routes
+// 2. Main Application Routes
 // --------------------------------------------------------
 function AppRoutes() {
   return (
@@ -88,23 +69,18 @@ function AppRoutes() {
       <Route element={<PrivateRoute />}>
         <Route path="/" element={<Layout />}>
           
-          {/* Dynamic Home Route */}
-          <Route index element={<DashboardRouter />} />
+          {/* Dynamic Home Route (Traffic Cop) */}
+          <Route index element={<DashboardMain />} />
           
           {/* Shared Routes (All authenticated users) */}
           <Route path="profile" element={<Profile />} />
 
-         t
           {/* ------------------------------------------- */}
           {/* TEACHING TOOLS (Blocked for super_admin)    */}
           {/* ------------------------------------------- */}
           <Route element={<TeacherRoute />}>
             <Route path="lessons" element={<LessonBrowser />} />
-            
-            {/* FIX 1: Add /start back to this path */}
             <Route path="sessions/start" element={<SessionPage />} /> 
-            
-            {/* FIX 2: Change history back to sessions so your sidebar works */}
             <Route path="sessions" element={<SessionHistory />} />
           </Route>
 
@@ -125,7 +101,7 @@ function AppRoutes() {
 }
 
 // --------------------------------------------------------
-// 4. App Provider Wrapper
+// 3. App Provider Wrapper
 // --------------------------------------------------------
 function App() {
   return (

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   Users, UserPlus, ShieldAlert, Key, Loader2, AlertCircle, 
-  CheckCircle, Shield, GraduationCap, X, Edit
+  CheckCircle, Shield, GraduationCap, X, Edit, ArrowDownCircle 
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -24,7 +24,7 @@ const Teachers = () => {
     name: '',
     username: '',
     password: '',
-    assignedClasses: [] // Array of "class_number|section" strings
+    assignedClasses: [] 
   });
 
   const fetchData = async () => {
@@ -65,7 +65,6 @@ const Teachers = () => {
     setIsEditMode(true);
     setSelectedTeacherId(teacher.id);
     
-    // Pre-fill the checkboxes with the teacher's current classes
     const existingClasses = (teacher.classes || []).map(c => 
       `${c.class_number || c.classNumber}|${c.section}`
     );
@@ -73,7 +72,7 @@ const Teachers = () => {
     setFormData({
       name: teacher.name,
       username: teacher.username,
-      password: '', // Not needed for editing classes
+      password: '', 
       assignedClasses: existingClasses
     });
     
@@ -88,20 +87,15 @@ const Teachers = () => {
     setError(null);
 
     try {
-      // Format assigned classes for the backend
       const formattedClasses = formData.assignedClasses.map(cls => {
         const [class_number, section] = cls.split('|');
         return { class_number: parseInt(class_number), section };
       });
 
       if (isEditMode) {
-        // UPDATE Existing Teacher's Classes
-        await api.put(`/teachers/${selectedTeacherId}/classes`, { 
-          classes: formattedClasses 
-        });
+        await api.put(`/teachers/${selectedTeacherId}/classes`, { classes: formattedClasses });
         setSuccessMsg("Teacher classes updated successfully!");
       } else {
-        // CREATE New Teacher
         await api.post('/teachers', {
           name: formData.name,
           username: formData.username,
@@ -112,7 +106,7 @@ const Teachers = () => {
       }
 
       setIsModalOpen(false);
-      fetchData(); // Refresh list to get new data
+      fetchData(); 
       setTimeout(() => setSuccessMsg(''), 3000);
 
     } catch (err) {
@@ -123,15 +117,29 @@ const Teachers = () => {
     }
   };
 
+  // NEW: Promote Handler
   const handlePromote = async (id, name) => {
     if (!window.confirm(`Are you sure you want to promote ${name} to School Admin?`)) return;
     try {
-      await api.put(`/teachers/${id}/promote`);
-      setSuccessMsg(`${name} was successfully promoted!`);
+      await api.put(`/users/${id}/promote-admin`);
+      setSuccessMsg(`${name} was promoted to School Admin!`);
       fetchData();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       alert("Failed to promote teacher. Please try again.");
+    }
+  };
+
+  // NEW: Demote Handler
+  const handleDemote = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to demote ${name} back to a regular Teacher? They will lose admin privileges.`)) return;
+    try {
+      await api.put(`/users/${id}/demote`);
+      setSuccessMsg(`${name} was demoted to Teacher.`);
+      fetchData();
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      alert("Failed to demote admin. Please try again.");
     }
   };
 
@@ -226,7 +234,7 @@ const Teachers = () => {
                 </div>
                 <div>
                   <p className="font-bold text-gray-900">{teacher.name}</p>
-                  <span className="text-xs font-medium text-gray-500 capitalize">{teacher.role.replace('_', ' ')}</span>
+                  <span className="text-xs font-bold text-gray-500 capitalize">{teacher.role.replace(/_/g, ' ')}</span>
                 </div>
               </div>
 
@@ -255,7 +263,6 @@ const Teachers = () => {
               {/* Actions */}
               <div className="md:col-span-3 flex flex-wrap items-center md:justify-end gap-2 mt-2 md:mt-0 pt-3 md:pt-0 border-t border-gray-50 md:border-0">
                 
-                {/* NEW EDIT BUTTON */}
                 <button 
                   onClick={() => openEditModal(teacher)}
                   className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-100 transition-colors"
@@ -272,7 +279,8 @@ const Teachers = () => {
                   <Key className="w-4 h-4" /> Reset Pwd
                 </button>
                 
-                {teacher.role !== 'school_admin' && teacher.role !== 'school_super_admin' && (
+                {/* Dynamic Role Buttons */}
+                {teacher.role === 'teacher' && (
                   <button 
                     onClick={() => handlePromote(teacher.id, teacher.name)}
                     className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-lg border border-purple-100 transition-colors"
@@ -281,6 +289,18 @@ const Teachers = () => {
                     <ShieldAlert className="w-4 h-4" /> Promote
                   </button>
                 )}
+
+                {teacher.role === 'school_admin' && (
+                  <button 
+                    onClick={() => handleDemote(teacher.id, teacher.name)}
+                    className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold rounded-lg border border-orange-100 transition-colors"
+                    title="Demote to Teacher"
+                  >
+                    <ArrowDownCircle className="w-4 h-4" /> Demote
+                  </button>
+                )}
+                {/* Notice: No button renders if they are school_super_admin, keeping them safe! */}
+
               </div>
 
             </div>
@@ -315,7 +335,6 @@ const Teachers = () => {
 
               <form id="teacher-form" onSubmit={handleSubmit} className="space-y-4">
                 
-                {/* Only show personal details if CREATING a teacher */}
                 {!isEditMode && (
                   <>
                     <div>
@@ -335,7 +354,6 @@ const Teachers = () => {
                   </>
                 )}
 
-                {/* Class Assignment Checklist (Shown for BOTH Create and Edit) */}
                 {schoolClasses.length > 0 && (
                   <div className="pt-2">
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">

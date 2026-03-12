@@ -13,6 +13,7 @@ exports.createUser = async (data) => {
   const validRoles = [
     "ngo_super_admin",
     "ngo_staff",
+    "school_super_admin",
     "school_admin",
     "teacher",
   ];

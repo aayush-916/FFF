@@ -56,82 +56,86 @@ exports.getNgoStats = async () => {
 };
 
 // Add this below exports.getNgoStats
+// Inside models/dashboardModel.js
 
 exports.getSchoolStats = async (schoolId) => {
-    // 1. Total Sessions for this school
-    const sessionsPromise = pool.query('SELECT COUNT(*) as total FROM session_feedback WHERE school_id = ?', [schoolId]);
-    
-    // 2. Lessons Completed (Unique habits taught by this school)
-    const completedPromise = pool.query('SELECT COUNT(DISTINCT habit_id) as total FROM session_feedback WHERE school_id = ?', [schoolId]);
-    
-    // 3. Total Lessons in the system
-    const totalLessonsPromise = pool.query('SELECT COUNT(*) as total FROM lessons');
-    
-    // 4. Last Session Date
-    const lastSessionPromise = pool.query('SELECT MAX(conducted_at) as last_session FROM session_feedback WHERE school_id = ?', [schoolId]);
-    
-    // 5. Recent Sessions (Limit 5)
-    const recentSessionsPromise = pool.query(`
-    SELECT l.title as lesson_title, sf.class_number, sf.section, sf.conducted_at as created_at 
-    FROM session_feedback sf
-    LEFT JOIN lessons l ON sf.lesson_id = l.id
-    WHERE sf.school_id = ? 
-    ORDER BY sf.conducted_at DESC 
-    LIMIT 5
-`, [schoolId]); // 👈 Uses schoolId;
-    
-    // 6. Suggested Lesson (Find a lesson belonging to a habit the school hasn't taught yet)
-    const suggestedLessonPromise = pool.query(`
-        SELECT d.name as domain, h.name as habit, l.title, l.class_number as targetClass
-        FROM lessons l
-        JOIN habits h ON l.habit_id = h.id
-        JOIN domains d ON h.domain_id = d.id
-        WHERE h.id NOT IN (SELECT habit_id FROM session_feedback WHERE school_id = ?)
-        LIMIT 1
+    // 1. Total Teachers (Count of teachers and school admins)
+    const teachersPromise = pool.query(`
+        SELECT COUNT(*) as count 
+        FROM users 
+        WHERE school_id = ? AND role IN ('teacher', 'school_admin')
     `, [schoolId]);
 
-    // 7. Domain Progress (Calculate completed vs total habits per domain for this school)
+    // 2. Total Sessions (Total feedback logs for this school)
+    const sessionsPromise = pool.query(`
+        SELECT COUNT(*) as count 
+        FROM session_feedback 
+        WHERE school_id = ?
+    `, [schoolId]);
+
+    // 3. Lessons Completed (Count of UNIQUE lessons taught)
+    const lessonsCompletedPromise = pool.query(`
+        SELECT COUNT(DISTINCT lesson_id) as count 
+        FROM session_feedback 
+        WHERE school_id = ? AND lesson_id IS NOT NULL
+    `, [schoolId]);
+
+    // 4. Overall Habit Completion (Percentage of total available habits taught)
+    const habitCompletionPromise = pool.query(`
+        SELECT ROUND((COUNT(DISTINCT sf.habit_id) / (SELECT COUNT(*) FROM habits)) * 100) as percentage 
+        FROM session_feedback sf 
+        WHERE school_id = ?
+    `, [schoolId]);
+
+    // 5. Class Performance Graph (Grouped by Class)
+    const classPerformancePromise = pool.query(`
+        SELECT CONCAT('Class ', class_number) as name, COUNT(*) as completed 
+        FROM session_feedback 
+        WHERE school_id = ? 
+        GROUP BY class_number 
+        ORDER BY class_number
+    `, [schoolId]);
+
+    // 6. EXISTING: Domain Progress (Keep your existing query logic here!)
     const domainProgressPromise = pool.query(`
-        SELECT 
-            d.name as domain, 
-            COUNT(DISTINCT h.id) as total_habits,
-            COUNT(DISTINCT sf.habit_id) as completed_habits
+        SELECT d.name as domain, 
+               ROUND(COALESCE((COUNT(sf.id) / 10) * 100, 0)) as percentage 
         FROM domains d
-        JOIN habits h ON d.id = h.domain_id
-        LEFT JOIN session_feedback sf ON sf.habit_id = h.id AND sf.school_id = ?
-        GROUP BY d.id, d.name
+        LEFT JOIN habits h ON d.id = h.domain_id
+        LEFT JOIN session_feedback sf ON h.id = sf.habit_id AND sf.school_id = ?
+        GROUP BY d.id
     `, [schoolId]);
 
-    // Execute all queries concurrently
+    // 7. EXISTING: Recent Sessions (With our fixed lesson_id join!)
+    const recentSessionsPromise = pool.query(`
+        SELECT l.title as lesson_title, sf.class_number, sf.section, sf.conducted_at as created_at 
+        FROM session_feedback sf
+        LEFT JOIN lessons l ON sf.lesson_id = l.id
+        WHERE sf.school_id = ? 
+        ORDER BY sf.conducted_at DESC 
+        LIMIT 5
+    `, [schoolId]);
+
+    // Await all promises concurrently for maximum performance
     const [
-        [sessionsRows], 
-        [completedRows], 
-        [totalLessonsRows], 
-        [lastSessionRows], 
-        [recentSessionsRows], 
-        [suggestedLessonRows], 
-        [domainProgressRows]
+        [teachersRes], [sessionsRes], [lessonsRes], [habitRes], 
+        [classPerfRes], [domainProgRes], [recentSessRes]
     ] = await Promise.all([
-        sessionsPromise, 
-        completedPromise, 
-        totalLessonsPromise, 
-        lastSessionPromise, 
-        recentSessionsPromise, 
-        suggestedLessonPromise, 
-        domainProgressPromise
+        teachersPromise, sessionsPromise, lessonsCompletedPromise, habitCompletionPromise,
+        classPerformancePromise, domainProgressPromise, recentSessionsPromise
     ]);
 
+    // Map the SQL results to the exact JSON structure the frontend requested
     return {
-        totalSessions: sessionsRows[0].total,
-        lessonsCompleted: completedRows[0].total,
-        totalLessonsSystem: totalLessonsRows[0].total,
-        lastSession: lastSessionRows[0].last_session,
-        recentSessions: recentSessionsRows,
-        suggestedLesson: suggestedLessonRows[0] || null, // Handle case where all lessons are completed
-        domainProgressRaw: domainProgressRows
+        totalTeachers: teachersRes[0]?.count || 0,
+        totalSessions: sessionsRes[0]?.count || 0,
+        lessonsCompleted: lessonsRes[0]?.count || 0,
+        overallHabitCompletion: habitRes[0]?.percentage || 0,
+        classPerformance: classPerfRes,
+        domainProgress: domainProgRes, 
+        recentSessions: recentSessRes
     };
 };
-
 // Add this below your existing getSchoolStats function
 
 exports.getTeacherStats = async (teacherId) => {

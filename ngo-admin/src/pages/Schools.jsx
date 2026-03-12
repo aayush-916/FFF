@@ -158,7 +158,7 @@ const Schools = () => {
         name: adminForm.name,
         username: adminForm.username,
         password: adminForm.password,
-        role: 'school_admin'
+        role: 'school_super_admin'
       });
       
       showToast('School and Admin account created successfully!');

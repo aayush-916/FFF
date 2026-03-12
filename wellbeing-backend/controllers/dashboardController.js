@@ -1,5 +1,5 @@
 const dashboardService = require('../services/dashboardService');
-
+const dashboardModel = require('../models/dashboardModel');
 // @desc    Get NGO Super Admin Dashboard Statistics
 // @route   GET /api/v1/dashboard/ngo
 exports.getNgoDashboard = async (req, res) => {
@@ -23,27 +23,28 @@ exports.getNgoDashboard = async (req, res) => {
 // @access  Private (school_admin, teacher)
 exports.getSchoolDashboard = async (req, res) => {
     try {
+        // Securely grab the school_id from the logged-in user's token
         const schoolId = req.user.school_id;
 
-        // Security check: Ensure the user actually belongs to a school
         if (!schoolId) {
-            return res.status(400).json({
-                success: false,
-                message: 'BAD_REQUEST: User is not associated with a school.'
+            return res.status(403).json({ 
+                success: false, 
+                message: "Access Denied: No school assigned to this user." 
             });
         }
 
-        // Fetch real data from the service
-        const dashboardData = await dashboardService.getSchoolDashboardData(schoolId);
+        // Fetch the newly formatted stats from the Model
+        const stats = await dashboardModel.getSchoolStats(schoolId);
 
+        // Return the exact JSON structure requested
         res.status(200).json({
             success: true,
-            ...dashboardData // Spreads the properties into the top level of the JSON response
+            data: stats
         });
 
     } catch (error) {
-        console.error('School Dashboard API Error:', error.message);
-        res.status(500).json({ success: false, message: 'Internal Server Error' });
+        console.error("🚨 Dashboard API Error:", error);
+        res.status(500).json({ success: false, message: "Error loading dashboard data" });
     }
 };
 

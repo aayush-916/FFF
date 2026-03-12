@@ -101,3 +101,37 @@ exports.getTeacherAssignedClasses = async (req, res) => {
         res.status(500).json({ success: false, message: 'Internal Server Error' });
     }
 };
+
+// @desc    Demote a school admin back to a teacher
+// @route   PUT /api/v1/users/:id/demote
+exports.demoteUser = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        
+        // Optional Security Check: Prevent a user from demoting themselves!
+        if (parseInt(userId) === req.user.id) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "You cannot demote yourself. Please ask another admin to do this." 
+            });
+        }
+
+        const affectedRows = await userModel.demoteToTeacher(userId);
+        
+        if (affectedRows === 0) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "User not found or is not currently a School Admin." 
+            });
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            message: "User successfully demoted to Teacher." 
+        });
+
+    } catch (error) {
+        console.error("🚨 Error demoting user:", error);
+        res.status(500).json({ success: false, message: "Server error while demoting user." });
+    }
+};

@@ -48,6 +48,13 @@ exports.promoteToAdmin = async (userId) => {
     return result.affectedRows;
 };
 
+exports.demoteToTeacher = async (userId) => {
+    // Only demote if they are currently a school_admin
+    const query = `UPDATE users SET role = 'teacher' WHERE id = ? AND role = 'school_admin'`;
+    const [result] = await pool.query(query, [userId]);
+    return result.affectedRows;
+};
+
 exports.findAll = async () => {
     // Subquery uses JSON_ARRAYAGG to return classes as a clean array of objects
     const query = `
