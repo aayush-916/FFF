@@ -1,92 +1,107 @@
-const lessonService = require('../services/lessonService');
+const lessonModel = require('../models/lessonModel');
 
-const handleError = (res, error) => {
-    console.error('Lesson API Error:', error.message);
-    if (error.message.includes('NOT_FOUND')) {
-        return res.status(404).json({ success: false, message: error.message.replace('NOT_FOUND: ', '') });
-    }
-    if (error.message.includes('BAD_REQUEST')) {
-        return res.status(400).json({ success: false, message: error.message.replace('BAD_REQUEST: ', '') });
-    }
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
-};
-
-// Helper to extract file paths from multer
-const extractFilePaths = (req) => {
-    const paths = {};
-    if (req.files) {
-        if (req.files.lesson_pdf) {
-            // Store the relative path so the frontend can append the base URL
-            paths.lesson_pdf_url = `/${req.files.lesson_pdf[0].path.replace(/\\/g, '/')}`;
-        }
-        if (req.files.teacher_guide) {
-            paths.teacher_guide_url = `/${req.files.teacher_guide[0].path.replace(/\\/g, '/')}`;
-        }
-    }
-    return paths;
-};
-
-// @desc    Create a new lesson
-// @route   POST /api/v1/lessons
-exports.createLesson = async (req, res) => {
-    try {
-        const filePaths = extractFilePaths(req);
-        const lessonData = { ...req.body, ...filePaths };
-        
-        const newLesson = await lessonService.createLesson(lessonData);
-        res.status(201).json({ success: true, data: newLesson });
-    } catch (error) {
-        handleError(res, error);
-    }
-};
-
-// @desc    Get all lessons (supports filtering by ?habit_id=1&class_number=5)
-// @route   GET /api/v1/lessons
 exports.getLessons = async (req, res) => {
     try {
-        const filters = {
-            habit_id: req.query.habit_id,
-            class_number: req.query.class_number
-        };
-        const lessons = await lessonService.getAllLessons(filters);
+        const lessons = await lessonModel.findAll();
         res.status(200).json({ success: true, count: lessons.length, data: lessons });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error fetching lessons:", error);
+        res.status(500).json({ success: false, message: "Server error" });
     }
 };
 
-// @desc    Get single lesson
-// @route   GET /api/v1/lessons/:id
 exports.getLesson = async (req, res) => {
     try {
-        const lesson = await lessonService.getLessonById(req.params.id);
+        const lesson = await lessonModel.findById(req.params.id);
+        if (!lesson) return res.status(404).json({ success: false, message: "Lesson not found" });
         res.status(200).json({ success: true, data: lesson });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error fetching lesson:", error);
+        res.status(500).json({ success: false, message: "Server error" });
     }
 };
 
-// @desc    Update lesson
-// @route   PUT /api/v1/lessons/:id
+exports.createLesson = async (req, res) => {
+    try {
+        // Removed 'title' from req.body destructuring
+        const { habit_id, type, duration_minutes, materials_meta } = req.body;
+        const files = req.files || [];
+
+        const teacherGuideFile = files.find(f => f.fieldname === 'teacher_guide');
+        const teacher_guide_url = teacherGuideFile ? `/uploads/guides/${teacherGuideFile.filename}` : null;
+
+        const lessonData = { habit_id, type, duration_minutes, teacher_guide_url };
+
+        let materialsData = [];
+        if (materials_meta) {
+            const metaArray = JSON.parse(materials_meta);
+            materialsData = metaArray.map(meta => {
+                const matchedFile = files.find(f => f.fieldname === meta.fileKey);
+                return {
+                    title: meta.title,
+                    description: meta.description,
+                    pdf_url: matchedFile ? `/uploads/lessons/${matchedFile.filename}` : null
+                };
+            }).filter(m => m.pdf_url);
+        }
+
+        const newLessonId = await lessonModel.createLessonTransaction(lessonData, materialsData);
+        const completeLesson = await lessonModel.findById(newLessonId);
+
+        res.status(201).json({ success: true, message: "Lesson created", data: completeLesson });
+    } catch (error) {
+        console.error("Error creating lesson:", error);
+        res.status(500).json({ success: false, message: "Server error creating lesson" });
+    }
+};
+
 exports.updateLesson = async (req, res) => {
     try {
-        const filePaths = extractFilePaths(req);
-        const lessonData = { ...req.body, ...filePaths };
+        const id = req.params.id;
+        // Removed 'title' from req.body destructuring
+        const { habit_id, type, duration_minutes, materials_meta, existing_materials } = req.body;
+        const files = req.files || [];
 
-        const updatedLesson = await lessonService.updateLesson(req.params.id, lessonData);
-        res.status(200).json({ success: true, data: updatedLesson });
+        const lessonData = { habit_id, type, duration_minutes };
+
+        const teacherGuideFile = files.find(f => f.fieldname === 'teacher_guide');
+        if (teacherGuideFile) {
+            lessonData.teacher_guide_url = `/uploads/guides/${teacherGuideFile.filename}`;
+        }
+
+        let newMaterialsData = [];
+        if (materials_meta) {
+            const metaArray = JSON.parse(materials_meta);
+            newMaterialsData = metaArray.map(meta => {
+                const matchedFile = files.find(f => f.fieldname === meta.fileKey);
+                return {
+                    title: meta.title,
+                    description: meta.description,
+                    pdf_url: matchedFile ? `/uploads/lessons/${matchedFile.filename}` : null
+                };
+            }).filter(m => m.pdf_url);
+        }
+
+        const existingMaterialsToKeep = existing_materials ? JSON.parse(existing_materials) : [];
+
+        await lessonModel.updateLessonTransaction(id, lessonData, newMaterialsData, existingMaterialsToKeep);
+        const completeLesson = await lessonModel.findById(id);
+
+        res.status(200).json({ success: true, message: "Lesson updated", data: completeLesson });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error updating lesson:", error);
+        res.status(500).json({ success: false, message: "Server error updating lesson" });
     }
 };
 
-// @desc    Delete lesson
-// @route   DELETE /api/v1/lessons/:id
 exports.deleteLesson = async (req, res) => {
     try {
-        await lessonService.deleteLesson(req.params.id);
-        res.status(200).json({ success: true, message: 'Lesson deleted successfully' });
+        const affectedRows = await lessonModel.deleteLesson(req.params.id);
+        if (affectedRows === 0) return res.status(404).json({ success: false, message: "Lesson not found" });
+        
+        res.status(200).json({ success: true, message: "Lesson deleted successfully" });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error deleting lesson:", error);
+        res.status(500).json({ success: false, message: "Server error deleting lesson" });
     }
 };

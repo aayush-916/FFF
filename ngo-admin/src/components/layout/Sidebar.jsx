@@ -66,9 +66,14 @@ const Sidebar = ({ isOpen, mobileOpen, setMobileOpen }) => {
         {/* Branding Area */}
         <div className="h-[70px] flex items-center justify-between px-6 border-b border-slate-700/50 shrink-0">
           <div className="flex items-center overflow-hidden whitespace-nowrap">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-lg shadow-indigo-500/30">
-              N
-            </div>
+            
+            {/* --- LOGO IMAGE HERE (The 'N' div has been deleted) --- */}
+            <img 
+              src="/logo.webp" 
+              alt="FFF Logo" 
+              className="w-16 h-16 object-contain shrink-0" 
+            />
+
             <div className={`ml-3 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 hidden lg:block'}`}>
               <h1 className="text-white font-bold text-lg leading-tight">FFF Admin</h1>
               <p className="text-xs text-indigo-300 font-medium">Wellbeing System</p>

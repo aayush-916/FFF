@@ -118,7 +118,7 @@ const Dashboard = () => {
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
             Program Overview
           </h1>
-          <p className="text-slate-500 mt-1 font-medium">Real-time telemetry of the NGO Wellbeing Initiative.</p>
+          <p className="text-slate-500 mt-1 font-medium">Real-time telemetry of the Wellbeing Initiative.</p>
         </div>
         <button 
           onClick={exportDashboardToCSV}

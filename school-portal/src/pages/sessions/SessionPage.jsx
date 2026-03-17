@@ -7,6 +7,7 @@ const SessionPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const lessonId = searchParams.get("lesson_id");
+  const classNumParam = searchParams.get("class_num"); 
 
   // Flow State
   const [step, setStep] = useState(1);
@@ -23,9 +24,8 @@ const SessionPage = () => {
   // Class Selection State
   const [teacherClasses, setTeacherClasses] = useState([]);
   const [otherClasses, setOtherClasses] = useState([]);
-  const [selectedClassData, setSelectedClassData] = useState(""); // Format: "class_number|section"
+  const [selectedClassData, setSelectedClassData] = useState(""); 
 
-  // Helper to safely format file URLs
   const getFileUrl = (filePath) => {
     if (!filePath) return '';
     if (filePath.startsWith('http')) return filePath;
@@ -43,20 +43,23 @@ const SessionPage = () => {
       try {
         setLoading(true);
         
-        // 1. Fetch Lesson Details
         const lessonRes = await api.get(`/lessons/${lessonId}`);
         setLesson(lessonRes.data.data || lessonRes.data);
 
-        // 2. Fetch Teacher's Assigned Classes
         const tClassRes = await api.get('/teacher/classes');
-        const tClasses = tClassRes.data.data || tClassRes.data || [];
+        let tClasses = tClassRes.data.data || tClassRes.data || [];
+        
+        const sClassRes = await api.get('/school/classes');
+        let sClasses = sClassRes.data.data || sClassRes.data || [];
+
+        if (classNumParam) {
+          const targetClass = parseInt(classNumParam);
+          tClasses = tClasses.filter(c => c.class_number === targetClass);
+          sClasses = sClasses.filter(c => c.class_number === targetClass);
+        }
+
         setTeacherClasses(tClasses);
 
-        // 3. Fetch All School Classes
-        const sClassRes = await api.get('/school/classes');
-        const sClasses = sClassRes.data.data || sClassRes.data || [];
-
-        // 4. Filter out Teacher's classes from the "Other Classes" list
         const teacherClassKeys = new Set(tClasses.map(c => `${c.class_number}-${c.section}`));
         const filteredOtherClasses = sClasses.filter(c => !teacherClassKeys.has(`${c.class_number}-${c.section}`));
         
@@ -71,7 +74,7 @@ const SessionPage = () => {
     };
 
     fetchData();
-  }, [lessonId]);
+  }, [lessonId, classNumParam]);
 
   const handleStartSession = async (e) => {
     e.preventDefault();
@@ -80,11 +83,9 @@ const SessionPage = () => {
     setSubmitting(true);
     setError(null);
 
-    // Split our combined string value back into class_number and section
     const [classNumStr, sectionStr] = selectedClassData.split('|');
 
     try {
-      // Create the session
       const response = await api.post('/sessions', {
         lesson_id: lessonId,
         habit_id: lesson.habit_id,
@@ -95,7 +96,6 @@ const SessionPage = () => {
       const newSessionId = response.data.id || response.data.data?.id || response.data.insertId;
       setSessionId(newSessionId);
 
-      // Fetch MCQ Questions
       const mcqResponse = await api.get(`/mcq?lesson_id=${lessonId}`);
       const fetchedQuestions = mcqResponse.data.data || mcqResponse.data || [];
       setQuestions(fetchedQuestions);
@@ -115,13 +115,16 @@ const SessionPage = () => {
     }
   };
 
-  const handleAnswerSelect = (questionId, option) => {
-    setAnswers(prev => ({ ...prev, [questionId]: option }));
+  const handleAnswerChange = (questionId, value) => {
+    setAnswers(prev => ({ ...prev, [questionId]: value }));
   };
 
   const handleSubmitFeedback = async () => {
-    if (Object.keys(answers).length < questions.length) {
-      setError("Please answer all questions before submitting.");
+    // 1. Validation: Ensure all REQUIRED (is_optional: 0) questions have an answer
+    const missingMandatory = questions.some(q => q.is_optional === 0 && !answers[q.id]);
+    
+    if (missingMandatory) {
+      setError("Please answer all required questions before submitting.");
       window.scrollTo(0, 0);
       return;
     }
@@ -130,12 +133,17 @@ const SessionPage = () => {
     setError(null);
 
     try {
-      const formattedResponses = Object.keys(answers).map(qId => ({
-        question_id: parseInt(qId),
-        selected_option: answers[qId]
-      }));
+      // 2. Formatting Payload based on Backend Specs
+      const formattedResponses = questions
+        .filter(q => answers[q.id] && answers[q.id].trim() !== '') // Skip empty optionals
+        .map(q => ({
+          question_id: q.id,
+          selected_option: q.question_type === 'mcq' ? answers[q.id] : null,
+          text_answer: q.question_type === 'text' ? answers[q.id] : null
+        }));
 
-      await api.post('/mcq-responses', {
+      // 3. Post to the newly updated backend endpoint
+      await api.post('/mcq/submit', {
         session_id: sessionId,
         responses: formattedResponses
       });
@@ -165,6 +173,50 @@ const SessionPage = () => {
   const pdfPath = lesson?.lesson_pdf_url || lesson?.lesson_pdf || lesson?.lessonPdf;
   const guidePath = lesson?.teacher_guide_url || lesson?.teacher_guide || lesson?.teacherGuide;
 
+  // --- Reusable Question Renderer ---
+  const renderQuestion = (q, globalIndex) => {
+    const isText = q.question_type === 'text';
+
+    return (
+      <div key={q.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+        <p className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span>Q{globalIndex + 1}: {q.question_text}</span>
+          {q.is_optional === 1 && (
+            <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Optional
+            </span>
+          )}
+        </p>
+
+        {isText ? (
+          <textarea
+            rows="3"
+            value={answers[q.id] || ''}
+            onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+            placeholder="Type your answer here..."
+            className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-3 outline-none transition-colors"
+          />
+        ) : (
+          <div className="space-y-3">
+            {(Array.isArray(q.options) ? q.options : JSON.parse(q.options || "[]")).map((opt) => (
+              <label key={opt} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${answers[q.id] === opt ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}>
+                <input
+                  type="radio"
+                  name={`question-${q.id}`}
+                  value={opt}
+                  checked={answers[q.id] === opt}
+                  onChange={() => handleAnswerChange(q.id, opt)}
+                  className="w-4 h-4 text-blue-600 bg-white border-gray-300 focus:ring-blue-500"
+                />
+                <span className="ml-3 font-medium text-sm">{opt}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-md mx-auto space-y-6 pb-8">
       
@@ -179,22 +231,22 @@ const SessionPage = () => {
         )}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {step === 1 ? 'Start Session' : step === 2 ? 'Session Feedback' : 'Success'}
+            {step === 1 ? 'Submit Lesson' : step === 2 ? 'Session Feedback' : 'Success'}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {step === 1 ? 'Select the class you are teaching.' : step === 2 ? 'How did the lesson go?' : 'Redirecting to dashboard...'}
+            {step === 1 ? 'Select the specific section you taught.' : step === 2 ? 'How did the lesson go?' : 'Redirecting to dashboard...'}
           </p>
         </div>
       </div>
 
       {error && (
         <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm flex items-start gap-2 border border-red-100">
-          <AlertCircle className="w-5 h-5 shrink-0" />
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <p>{error}</p>
         </div>
       )}
 
-      {/* STEP 1 UI: Start Session Form */}
+      {/* STEP 1 UI: Select Section & Confirm */}
       {step === 1 && lesson && (
         <div className="space-y-6">
           <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
@@ -202,9 +254,10 @@ const SessionPage = () => {
               Lesson Details
             </h2>
             <h3 className="text-xl font-bold text-gray-900">{lesson.title}</h3>
-            <p className="text-sm text-gray-500 mt-1 mb-5">Target: Class {lesson.class_number || lesson.classNumber}</p>
+            <p className="text-sm text-gray-500 mt-1 mb-5">
+              Class {classNumParam || lesson.class_number} • {lesson.type} Tier
+            </p>
 
-            {/* PDF View and Download Section */}
             <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
               {pdfPath && (
                 <div className="flex gap-2">
@@ -232,42 +285,38 @@ const SessionPage = () => {
 
           <form onSubmit={handleStartSession} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-5">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Select Class & Section</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                Which section of Class {classNumParam} did you teach?
+              </label>
               
               <select 
                 required
                 value={selectedClassData}
                 onChange={(e) => setSelectedClassData(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-3"
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-3 outline-none"
               >
-                <option value="" disabled>Choose a class</option>
+                <option value="" disabled>Choose a section</option>
                 
-                {/* GROUP 1: Assigned Classes */}
                 {teacherClasses.length > 0 && (
-                  <optgroup label="Recommended Classes">
+                  <optgroup label="Your Assigned Sections">
                     {teacherClasses.map((c, idx) => (
                       <option key={`rec-${idx}`} value={`${c.class_number}|${c.section}`}>
-                        {c.class_number}{c.section}
+                        Section {c.section}
                       </option>
                     ))}
                   </optgroup>
                 )}
 
-                {/* GROUP 2: All Other Classes */}
                 {otherClasses.length > 0 && (
-                  <optgroup label="Other Classes">
+                  <optgroup label="Other Sections">
                     {otherClasses.map((c, idx) => (
                       <option key={`oth-${idx}`} value={`${c.class_number}|${c.section}`}>
-                        {c.class_number}{c.section}
+                        Section {c.section}
                       </option>
                     ))}
                   </optgroup>
                 )}
               </select>
-              
-              <p className="text-xs text-gray-500 mt-2">
-                Your assigned classes appear at the top, but you can submit sessions for any class in the school.
-              </p>
             </div>
 
             <button
@@ -275,16 +324,17 @@ const SessionPage = () => {
               disabled={submitting || !selectedClassData}
               className="w-full flex justify-center items-center gap-2 bg-blue-600 text-white font-bold rounded-xl px-4 py-4 mt-4 hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
-              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-5 h-5" />}
-              Start Session
+              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ClipboardList className="w-5 h-5" />}
+              Continue to Feedback
             </button>
           </form>
         </div>
       )}
 
-      {/* STEP 2 UI: MCQ Feedback */}
+      {/* STEP 2 UI: Feedback Questions */}
       {step === 2 && (
         <div className="space-y-6">
+          
           {/* General Questions */}
           {generalQuestions.length > 0 && (
             <div className="space-y-4">
@@ -292,56 +342,18 @@ const SessionPage = () => {
                 <ClipboardList className="w-5 h-5 text-gray-500" />
                 General Classroom Feedback
               </h2>
-              {generalQuestions.map((q, idx) => (
-                <div key={q.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                  <p className="font-semibold text-gray-900 mb-4">Q{idx + 1}: {q.question_text}</p>
-                  <div className="space-y-3">
-                    {(Array.isArray(q.options) ? q.options : JSON.parse(q.options || "[]")).map((opt) => (
-                      <label key={opt} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${answers[q.id] === opt ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}>
-                        <input
-                          type="radio"
-                          name={`question-${q.id}`}
-                          value={opt}
-                          checked={answers[q.id] === opt}
-                          onChange={() => handleAnswerSelect(q.id, opt)}
-                          className="w-4 h-4 text-blue-600 bg-white border-gray-300 focus:ring-blue-500"
-                        />
-                        <span className="ml-3 font-medium text-sm">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              {generalQuestions.map((q, idx) => renderQuestion(q, idx))}
             </div>
           )}
 
-          {/* Lesson Questions */}
+          {/* Lesson Specific Questions */}
           {lessonQuestions.length > 0 && (
             <div className="space-y-4 mt-8">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <ClipboardList className="w-5 h-5 text-gray-500" />
                 Lesson Understanding
               </h2>
-              {lessonQuestions.map((q, idx) => (
-                <div key={q.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                  <p className="font-semibold text-gray-900 mb-4">Q{generalQuestions.length + idx + 1}: {q.question_text}</p>
-                  <div className="space-y-3">
-                    {(Array.isArray(q.options) ? q.options : JSON.parse(q.options || "[]")).map((opt) => (
-                      <label key={opt} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${answers[q.id] === opt ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}>
-                        <input
-                          type="radio"
-                          name={`question-${q.id}`}
-                          value={opt}
-                          checked={answers[q.id] === opt}
-                          onChange={() => handleAnswerSelect(q.id, opt)}
-                          className="w-4 h-4 text-blue-600 bg-white border-gray-300 focus:ring-blue-500"
-                        />
-                        <span className="ml-3 font-medium text-sm">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              {lessonQuestions.map((q, idx) => renderQuestion(q, generalQuestions.length + idx))}
             </div>
           )}
 

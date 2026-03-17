@@ -6,16 +6,26 @@ const mcqController = require('../controllers/mcqController');
 const { protect } = require('../middlewares/authMiddleware');
 const { allowRoles } = require('../middlewares/roleMiddleware');
 
-// 1. Require authentication for ALL routes
+// Require authentication for ALL routes in this file
 router.use(protect);
 
-// 2. Read operations (GET) allowed for ALL authenticated users
-router.get('/', mcqController.getMcqs);
-router.get('/:id', mcqController.getMcq);
+// ==========================================
+// SCHOOL PANEL ROUTES (Teachers & Admins)
+// ==========================================
 
-// 3. Write operations restricted to 'ngo_super_admin' only
-router.post('/', allowRoles('ngo_super_admin'), mcqController.createMcq);
-router.put('/:id', allowRoles('ngo_super_admin'), mcqController.updateMcq);
-router.delete('/:id', allowRoles('ngo_super_admin'), mcqController.deleteMcq);
+// Submit the final assessment responses
+router.post('/submit', allowRoles('teacher', 'school_admin', 'school_super_admin'), mcqController.submitResponses);
+
+// Fetch questions (Allowed for everyone to read)
+router.get('/', mcqController.getQuestions);
+router.get('/:id', mcqController.getQuestion);
+
+// ==========================================
+// NGO ADMIN ROUTES (Managing Questions)
+// ==========================================
+
+router.post('/', allowRoles('ngo_super_admin'), mcqController.createQuestion);
+router.put('/:id', allowRoles('ngo_super_admin'), mcqController.updateQuestion);
+router.delete('/:id', allowRoles('ngo_super_admin'), mcqController.deleteQuestion);
 
 module.exports = router;

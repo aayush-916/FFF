@@ -11,13 +11,17 @@ const ensureDirectoryExistence = (dirPath) => {
 
 ensureDirectoryExistence('uploads/lessons');
 ensureDirectoryExistence('uploads/guides');
+ensureDirectoryExistence('uploads/bulk'); // 👈 NEW: Folder for bulk CSV/XLSX files
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        if (file.fieldname === 'lesson_pdf') {
+        // 👈 NEW: Catch dynamic material_file_X names
+        if (file.fieldname.startsWith('material_file_')) {
             cb(null, 'uploads/lessons/');
         } else if (file.fieldname === 'teacher_guide') {
             cb(null, 'uploads/guides/');
+        } else if (file.fieldname === 'file') {
+            cb(null, 'uploads/bulk/');
         } else {
             cb(new Error('Invalid field name'), false);
         }
@@ -30,11 +34,26 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-    // Accept only PDFs for lessons and guides
-    if (file.mimetype === 'application/pdf') {
-        cb(null, true);
-    } else {
-        cb(new Error('Only PDF files are allowed!'), false);
+    // Logic for Lessons and Guides (PDFs only)
+    if (file.fieldname.startsWith('material_file_') || file.fieldname === 'teacher_guide') {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Only PDF files are allowed for lessons and guides!'), false);
+        }
+    }
+    // 👈 NEW: Logic for Bulk School Registration (CSV/XLSX only)
+    else if (file.fieldname === 'file') {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (ext === '.csv' || ext === '.xlsx') {
+            cb(null, true);
+        } else {
+            cb(new Error('Only .csv and .xlsx files are allowed for bulk upload!'), false);
+        }
+    } 
+    // Fallback
+    else {
+        cb(new Error('Unexpected field name'), false);
     }
 };
 
@@ -44,8 +63,12 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB file size limit
 });
 
-// Export middleware for multiple fields
+// Existing Export: Middleware for lesson files
 exports.uploadLessonFiles = upload.fields([
     { name: 'lesson_pdf', maxCount: 1 },
     { name: 'teacher_guide', maxCount: 1 }
 ]);
+
+// 👈 NEW Export: Middleware for bulk file uploads
+exports.uploadDynamicLessonFiles = upload.any();
+exports.uploadBulkFile = upload.single('file');

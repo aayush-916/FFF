@@ -13,6 +13,7 @@ const TeacherDashboard = () => {
     const fetchDashboardData = async () => {
       try {
         const response = await api.get('/dashboard/teacher');
+        // console.log("Dashboard response:", response.data);
         
         // Directly target the inner "data" object where your stats live
         const dashboardData = response.data.data || response.data;

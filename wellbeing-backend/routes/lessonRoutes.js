@@ -5,7 +5,7 @@ const lessonController = require('../controllers/lessonController');
 // Import Middlewares
 const { protect } = require('../middlewares/authMiddleware');
 const { allowRoles } = require('../middlewares/roleMiddleware');
-const { uploadLessonFiles } = require('../middlewares/uploadMiddleware');
+const { uploadDynamicLessonFiles } = require('../middlewares/uploadMiddleware'); // 👈 Updated Import
 
 // 1. Require authentication for ALL routes
 router.use(protect);
@@ -14,20 +14,23 @@ router.use(protect);
 router.get('/', lessonController.getLessons);
 router.get('/:id', lessonController.getLesson);
 
-// 3. Write operations restricted to 'ngo_super_admin' + handle file uploads
-router.post('/', 
+// 3. Write operations restricted to 'ngo_super_admin' + handle dynamic file uploads
+router.post(
+    '/', 
     allowRoles('ngo_super_admin'), 
-    uploadLessonFiles, 
+    uploadDynamicLessonFiles, // 👈 Uses dynamic file uploader
     lessonController.createLesson
 );
 
-router.put('/:id', 
+router.put(
+    '/:id', 
     allowRoles('ngo_super_admin'), 
-    uploadLessonFiles, 
+    uploadDynamicLessonFiles, // 👈 Uses dynamic file uploader
     lessonController.updateLesson
 );
 
-router.delete('/:id', 
+router.delete(
+    '/:id', 
     allowRoles('ngo_super_admin'), 
     lessonController.deleteLesson
 );

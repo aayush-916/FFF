@@ -11,18 +11,19 @@ import {
   Filter,
   FileText,
   Clock,
-  GraduationCap,
-  Download
+  Layers,
+  Paperclip,
+  Repeat,
+  Layout
 } from 'lucide-react';
 import api from '../api/axios';
 
 const initialLessonState = {
-  title: '',
   habit_id: '',
-  class_number: '',
+  type: '', 
   duration_minutes: '',
-  lesson_pdf: null,
-  teacher_guide: null
+  teacher_guide: null,
+  materials: [{ title: '', description: '', file: null }] // Array for multiple PDFs
 };
 
 const Lessons = () => {
@@ -35,7 +36,7 @@ const Lessons = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [domainFilter, setDomainFilter] = useState('All');
   const [habitFilter, setHabitFilter] = useState('All');
-  const [classFilter, setClassFilter] = useState('All');
+  const [typeFilter, setTypeFilter] = useState('All');
 
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,15 +88,19 @@ const Lessons = () => {
 
   const openEditModal = (lesson) => {
     setModalMode('edit');
+    
+    // Map existing materials from backend if they exist, otherwise provide one empty slot
+    const existingMaterials = lesson.materials && lesson.materials.length > 0 
+      ? lesson.materials.map(m => ({ id: m.id, title: m.title, description: m.description, file: null, existingUrl: m.pdf_url }))
+      : [{ title: '', description: '', file: null }];
+
     setCurrentLesson({
       id: lesson.id,
-      title: lesson.title,
       habit_id: lesson.habit_id || '',
-      class_number: lesson.class_number || '',
+      type: lesson.type || '',
       duration_minutes: lesson.duration_minutes || '',
-      // We don't pre-populate file objects. If null, the backend should keep existing files.
-      lesson_pdf: null, 
-      teacher_guide: null
+      teacher_guide: null,
+      materials: existingMaterials
     });
     setIsModalOpen(true);
   };
@@ -105,26 +110,66 @@ const Lessons = () => {
     setIsDeleteModalOpen(true);
   };
 
+  // --- Dynamic Materials Handlers ---
+  const addMaterialRow = () => {
+    setCurrentLesson({
+      ...currentLesson,
+      materials: [...currentLesson.materials, { title: '', description: '', file: null }]
+    });
+  };
+
+  const removeMaterialRow = (index) => {
+    const updated = [...currentLesson.materials];
+    updated.splice(index, 1);
+    setCurrentLesson({ ...currentLesson, materials: updated });
+  };
+
+  const updateMaterial = (index, field, value) => {
+    const updated = [...currentLesson.materials];
+    updated[index][field] = value;
+    setCurrentLesson({ ...currentLesson, materials: updated });
+  };
+
   // CRUD Operations (multipart/form-data)
   const handleSaveLesson = async (e) => {
     e.preventDefault();
     
-    // Construct FormData for multipart upload
     const formData = new FormData();
-    formData.append('title', currentLesson.title);
     formData.append('habit_id', currentLesson.habit_id);
-    formData.append('class_number', currentLesson.class_number);
+    formData.append('type', currentLesson.type);
+    
+    // Safety Fallback: Send the title of the first PDF as the main lesson title 
+    // This prevents the backend from crashing until they drop the 'title' column from the DB.
+    const fallbackTitle = currentLesson.materials[0]?.title || 'Lesson File';
+    formData.append('title', fallbackTitle);
+
     if (currentLesson.duration_minutes) {
       formData.append('duration_minutes', currentLesson.duration_minutes);
-    }
-    
-    // Only append files if they are actually selected (useful for Edit mode)
-    if (currentLesson.lesson_pdf) {
-      formData.append('lesson_pdf', currentLesson.lesson_pdf);
     }
     if (currentLesson.teacher_guide) {
       formData.append('teacher_guide', currentLesson.teacher_guide);
     }
+
+    // Process multiple materials/PDFs
+    const materialsMeta = [];
+    currentLesson.materials.forEach((mat, index) => {
+      const fileKey = `material_file_${index}`;
+      
+      // Only append file if one was selected
+      if (mat.file) {
+        formData.append(fileKey, mat.file);
+      }
+
+      materialsMeta.push({
+        id: mat.id || null, // pass ID if updating existing
+        title: mat.title,
+        description: mat.description,
+        fileKey: mat.file ? fileKey : null // Let backend know if a new file is attached
+      });
+    });
+
+    // Send metadata as a JSON string so backend knows which file belongs to which title/desc
+    formData.append('materials_meta', JSON.stringify(materialsMeta));
 
     try {
       if (modalMode === 'add') {
@@ -166,21 +211,25 @@ const Lessons = () => {
     const habit = getHabit(lesson.habit_id);
     const domainId = habit ? habit.domain_id : null;
 
-    const matchesSearch = lesson.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesClass = classFilter === 'All' || lesson.class_number?.toString() === classFilter;
+    const searchLower = searchQuery.toLowerCase();
+    
+    // Search checks Habit Name, Lesson Type, and any PDF titles inside the lesson
+    const matchesSearch = 
+      habit?.name.toLowerCase().includes(searchLower) || 
+      lesson.type?.toLowerCase().includes(searchLower) ||
+      (lesson.materials && lesson.materials.some(m => m.title?.toLowerCase().includes(searchLower)));
+
+    const matchesType = typeFilter === 'All' || lesson.type === typeFilter;
     const matchesHabit = habitFilter === 'All' || lesson.habit_id?.toString() === habitFilter;
     const matchesDomain = domainFilter === 'All' || domainId?.toString() === domainFilter;
 
-    return matchesSearch && matchesClass && matchesHabit && matchesDomain;
+    return matchesSearch && matchesType && matchesHabit && matchesDomain;
   });
 
   // Dynamic Habit Options based on selected Domain Filter
   const availableHabitsForFilter = domainFilter === 'All' 
     ? habits 
     : habits.filter(h => h.domain_id?.toString() === domainFilter);
-
-  // Extract unique classes for the filter dropdown
-  const uniqueClasses = [...new Set(lessons.map(l => l.class_number))].filter(Boolean).sort();
 
   return (
     <div className="p-4 md:p-8 max-w-[1600px] mx-auto min-h-screen bg-[#fafafa] text-slate-800 font-sans">
@@ -196,7 +245,7 @@ const Lessons = () => {
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
             Lesson Management
           </h1>
-          <p className="text-slate-500 mt-1 font-medium">Upload and manage learning materials, PDFs, and teacher guides.</p>
+          <p className="text-slate-500 mt-1 font-medium">Upload and manage lesson modules, multiple PDFs, and teacher guides.</p>
         </div>
         <button 
           onClick={openAddModal}
@@ -218,7 +267,7 @@ const Lessons = () => {
             <div className="relative w-full md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
-                type="text" placeholder="Search lessons..." 
+                type="text" placeholder="Search by habit, type, or PDF..." 
                 value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 w-full bg-white transition-shadow"
               />
@@ -231,7 +280,7 @@ const Lessons = () => {
                 value={domainFilter} 
                 onChange={(e) => {
                   setDomainFilter(e.target.value);
-                  setHabitFilter('All'); // Reset habit filter when domain changes
+                  setHabitFilter('All');
                 }}
                 className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 w-full bg-white appearance-none font-medium text-slate-600 truncate"
               >
@@ -252,15 +301,16 @@ const Lessons = () => {
               </select>
             </div>
 
-            {/* Class Filter */}
+            {/* Type Filter */}
             <div className="relative w-full md:w-32">
-              <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <Layers className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <select 
-                value={classFilter} onChange={(e) => setClassFilter(e.target.value)}
+                value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 w-full bg-white appearance-none font-medium text-slate-600"
               >
-                <option value="All">All Classes</option>
-                {uniqueClasses.map(c => <option key={c} value={c}>Class {c}</option>)}
+                <option value="All">All Types</option>
+                <option value="Lower">Lower</option>
+                <option value="Higher">Higher</option>
               </select>
             </div>
 
@@ -275,10 +325,9 @@ const Lessons = () => {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Lesson Info</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Curriculum mapping</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Logistics</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Materials</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Target Curriculum</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Logistics & Guide</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">PDF Materials</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
@@ -287,9 +336,8 @@ const Lessons = () => {
                 // LOADING SKELETON
                 [...Array(5)].map((_, idx) => (
                   <tr key={idx} className="animate-pulse">
-                    <td className="px-6 py-4"><div className="h-4 bg-slate-200 rounded w-48"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-slate-200 rounded w-32 mb-1"></div><div className="h-3 bg-slate-100 rounded w-24"></div></td>
-                    <td className="px-6 py-4"><div className="h-4 bg-slate-200 rounded w-20 mb-1"></div><div className="h-3 bg-slate-100 rounded w-16"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-200 rounded w-24 mb-1"></div><div className="h-3 bg-slate-100 rounded w-16"></div></td>
                     <td className="px-6 py-4 flex gap-2"><div className="h-8 w-24 bg-slate-200 rounded-lg"></div></td>
                     <td className="px-6 py-4 text-right"><div className="h-8 w-16 bg-slate-200 rounded-lg inline-block"></div></td>
                   </tr>
@@ -297,11 +345,11 @@ const Lessons = () => {
               ) : filteredLessons.length === 0 ? (
                 // EMPTY STATE
                 <tr>
-                  <td colSpan="5" className="px-6 py-16 text-center">
+                  <td colSpan="4" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-400">
                       <FileText size={48} className="mb-4 opacity-20" />
                       <p className="text-lg font-semibold text-slate-600">No lessons created yet</p>
-                      <p className="text-sm mt-1">Upload your first lesson PDF to get started.</p>
+                      <p className="text-sm mt-1">Upload your first lesson to get started.</p>
                       <button onClick={openAddModal} className="mt-4 text-orange-500 font-medium hover:underline">
                         + Add Lesson
                       </button>
@@ -317,43 +365,51 @@ const Lessons = () => {
                   return (
                     <tr key={lesson.id} className="hover:bg-slate-50/80 transition-colors group">
                       <td className="px-6 py-4">
-                        <div className="font-bold text-slate-800">{lesson.title}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-700">{habit ? habit.name : 'Unknown Habit'}</div>
-                        <div className="text-xs font-medium text-slate-400 mt-1">{domain ? domain.name : 'Unknown Domain'}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 font-semibold text-slate-700">
-                          <GraduationCap size={14} className="text-orange-400" /> Class {lesson.class_number}
+                        <div className="flex items-center gap-2 font-bold text-slate-800">
+                          <Repeat size={16} className="text-rose-500" />
+                          {habit ? habit.name : 'Unknown Habit'}
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mt-1">
-                          <Clock size={12} className="text-slate-400" /> {lesson.duration_minutes || '-'} mins
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mt-1">
+                          <Layers size={14} className="text-orange-400" /> {lesson.type || '-'} Level 
+                          <span className="text-slate-300 px-1">•</span> 
+                          {domain ? domain.name : 'Unknown Domain'}
                         </div>
                       </td>
-                      <td className="px-6 py-4 space-y-2">
-                        {lesson.lesson_pdf_url ? (
-                          <a 
-                            href={lesson.lesson_pdf_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors mr-2"
-                          >
-                            <FileText size={14} /> View Lesson
-                          </a>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-xs font-bold mr-2">No PDF</span>
-                        )}
-
-                        {lesson.teacher_guide_url && (
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5 font-semibold text-slate-700 mb-1.5">
+                          <Clock size={14} className="text-slate-400" /> {lesson.duration_minutes || '-'} mins
+                        </div>
+                        {lesson.teacher_guide_url ? (
                           <a 
                             href={lesson.teacher_guide_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md text-xs font-bold transition-colors"
                           >
-                            <BookOpen size={14} /> View Guide
+                            <BookOpen size={12} /> View Guide
                           </a>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-400 italic">No guide attached</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {lesson.materials && lesson.materials.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 max-w-sm">
+                            {lesson.materials.map(mat => (
+                              <a 
+                                key={mat.id}
+                                href={mat.pdf_url}
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
+                                title={mat.description}
+                              >
+                                <Paperclip size={14} /> {mat.title}
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-400 rounded-lg text-xs font-bold">No PDFs</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -384,10 +440,10 @@ const Lessons = () => {
       {/* --- ADD/EDIT MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-slate-900/40 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h3 className="text-xl font-bold text-slate-800">
-                {modalMode === 'add' ? 'Upload New Lesson' : 'Edit Lesson Details'}
+                {modalMode === 'add' ? 'Create New Lesson' : 'Edit Lesson Details'}
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
                 <X size={20} />
@@ -397,20 +453,9 @@ const Lessons = () => {
             <form onSubmit={handleSaveLesson} className="p-6 max-h-[80vh] overflow-y-auto">
               <div className="space-y-6">
                 
-                {/* Text Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Lesson Title *</label>
-                    <input 
-                      type="text" required
-                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium text-slate-800"
-                      placeholder="e.g., The Magic of Hydration"
-                      value={currentLesson.title}
-                      onChange={(e) => setCurrentLesson({...currentLesson, title: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
+                {/* Core Lesson Info - No Title Here */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="md:col-span-1">
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Associated Habit *</label>
                     <select 
                       required
@@ -430,18 +475,21 @@ const Lessons = () => {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Class Number *</label>
-                    <input 
-                      type="number" required min="1" max="12"
-                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium text-slate-800"
-                      placeholder="e.g., 5"
-                      value={currentLesson.class_number}
-                      onChange={(e) => setCurrentLesson({...currentLesson, class_number: e.target.value})}
-                    />
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Level / Type *</label>
+                    <select 
+                      required
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium text-slate-800 bg-white"
+                      value={currentLesson.type}
+                      onChange={(e) => setCurrentLesson({...currentLesson, type: e.target.value})}
+                    >
+                      <option value="" disabled>Select a type</option>
+                      <option value="Lower">Lower</option>
+                      <option value="Higher">Higher</option>
+                    </select>
                   </div>
 
-                  <div>
+                  <div className="md:col-span-1">
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Duration (Minutes)</label>
                     <input 
                       type="number" min="1"
@@ -453,35 +501,96 @@ const Lessons = () => {
                   </div>
                 </div>
 
-                {/* File Uploads */}
+                {/* Teacher Guide Upload */}
+                <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl">
+                  <label className="block text-sm font-bold text-emerald-800 mb-1.5 flex items-center gap-1.5">
+                    <BookOpen size={16} className="text-emerald-500"/> Teacher Guide (Optional)
+                  </label>
+                  <p className="text-xs text-emerald-600 mb-3">Upload a single overarching guide for teachers for this lesson.</p>
+                  <input 
+                    type="file" accept="application/pdf"
+                    className="w-full px-3 py-2 border border-emerald-200 rounded-xl bg-white text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 transition-all cursor-pointer"
+                    onChange={(e) => setCurrentLesson({...currentLesson, teacher_guide: e.target.files[0]})}
+                  />
+                </div>
+
+                {/* Dynamic Lesson PDFs / Materials */}
                 <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-                  <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <Download size={16} className="text-orange-500"/> Material Uploads
-                  </h4>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <Paperclip size={16} className="text-orange-500"/> Lesson PDFs (Materials)
+                    </h4>
+                    <button 
+                      type="button" 
+                      onClick={addMaterialRow}
+                      className="text-xs font-bold text-orange-600 bg-orange-100 hover:bg-orange-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                    >
+                      <Plus size={14} /> Add PDF
+                    </button>
+                  </div>
+                  
                   {modalMode === 'edit' && (
                     <p className="text-xs font-medium text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                      Leave file inputs empty if you do not wish to overwrite existing materials.
+                      Leave file inputs empty if you do not wish to overwrite existing uploaded PDFs.
                     </p>
                   )}
-                  
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Lesson PDF {modalMode === 'add' ? '*' : ''}</label>
-                    <input 
-                      type="file" accept="application/pdf"
-                      required={modalMode === 'add'}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 transition-all cursor-pointer"
-                      onChange={(e) => setCurrentLesson({...currentLesson, lesson_pdf: e.target.files[0]})}
-                    />
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Teacher Guide (Optional)</label>
-                    <input 
-                      type="file" accept="application/pdf"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl bg-white text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 transition-all cursor-pointer"
-                      onChange={(e) => setCurrentLesson({...currentLesson, teacher_guide: e.target.files[0]})}
-                    />
-                  </div>
+                  {currentLesson.materials.map((material, index) => (
+                    <div key={index} className="p-4 bg-white border border-slate-200 rounded-xl relative group">
+                      
+                      {/* Remove Button */}
+                      {currentLesson.materials.length > 1 && (
+                        <button 
+                          type="button"
+                          onClick={() => removeMaterialRow(index)}
+                          className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"
+                          title="Remove PDF"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2 pr-8">
+                          <label className="block text-xs font-bold text-slate-500 mb-1">PDF Title *</label>
+                          <input 
+                            type="text" required
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium text-sm text-slate-800"
+                            placeholder="e.g., Reading Worksheet"
+                            value={material.title}
+                            onChange={(e) => updateMaterial(index, 'title', e.target.value)}
+                          />
+                        </div>
+                        
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-500 mb-1">Description (Optional)</label>
+                          <textarea 
+                            rows="2"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium text-sm text-slate-800 resize-none"
+                            placeholder="Short description of this material..."
+                            value={material.description}
+                            onChange={(e) => updateMaterial(index, 'description', e.target.value)}
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-500 mb-1">PDF File {modalMode === 'add' ? '*' : ''}</label>
+                          <input 
+                            type="file" accept="application/pdf"
+                            required={modalMode === 'add' && !material.existingUrl}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-sm text-slate-600 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all cursor-pointer"
+                            onChange={(e) => updateMaterial(index, 'file', e.target.files[0])}
+                          />
+                          {material.existingUrl && (
+                            <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                              <CheckCircle2 size={12} className="text-emerald-500"/> Current file uploaded
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
                 </div>
 
               </div>
@@ -516,7 +625,7 @@ const Lessons = () => {
             </div>
             <h3 className="text-2xl font-bold text-slate-800 mb-2">Delete Lesson?</h3>
             <p className="text-slate-500 font-medium mb-8">
-              Are you sure you want to delete <strong className="text-slate-700">"{lessonToDelete?.title}"</strong>? This will permanently remove the associated PDF files.
+              Are you sure you want to delete this lesson? This will permanently remove all associated PDFs.
             </p>
             <div className="flex gap-3 justify-center">
               <button 

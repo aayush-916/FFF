@@ -13,15 +13,20 @@ import {
   BookOpen,
   Layout,
   Repeat,
-  Globe
+  Globe,
+  AlignLeft,
+  MinusCircle,
+  PlusCircle
 } from 'lucide-react';
 import api from '../api/axios';
 
 const initialMcqState = {
-  scope: 'lesson', // 'lesson' or 'global'
+  scope: 'lesson', 
   lesson_id: '',
+  question_type: 'mcq', // 'mcq' or 'text'
+  is_optional: false, // true or false
   question_text: '',
-  options: ['', '', '', ''],
+  options: ['', ''], // Default 2 options for mcq
   correct_option: '',
   question_order: ''
 };
@@ -92,16 +97,18 @@ const McqQuestions = () => {
 
   const openEditModal = (mcq) => {
     setModalMode('edit');
-    // Ensure options array has exactly 4 elements for the UI
-    const paddedOptions = [...(mcq.options || [])];
-    while (paddedOptions.length < 4) paddedOptions.push('');
+    
+    // Process existing options or default to 2 empty strings if none exist
+    let existingOptions = mcq.options && mcq.options.length > 0 ? [...mcq.options] : ['', ''];
     
     setCurrentMcq({
       id: mcq.id,
       scope: mcq.lesson_id ? 'lesson' : 'global',
       lesson_id: mcq.lesson_id || '',
+      question_type: mcq.question_type || 'mcq',
+      is_optional: mcq.is_optional || false,
       question_text: mcq.question_text || '',
-      options: paddedOptions.slice(0, 4),
+      options: existingOptions,
       correct_option: mcq.correct_option || '',
       question_order: mcq.question_order || ''
     });
@@ -113,12 +120,12 @@ const McqQuestions = () => {
     setIsDeleteModalOpen(true);
   };
 
-  // Dynamic Option Handler
+  // --- Dynamic Option Handlers ---
   const handleOptionChange = (index, value) => {
     const newOptions = [...currentMcq.options];
     newOptions[index] = value;
     
-    // If the currently selected correct option text is changed, update the correct_option to match
+    // Update correct option if the text of the currently selected correct option changes
     let newCorrectOption = currentMcq.correct_option;
     if (currentMcq.correct_option === currentMcq.options[index]) {
       newCorrectOption = value;
@@ -131,6 +138,26 @@ const McqQuestions = () => {
     });
   };
 
+  const addOption = () => {
+    if (currentMcq.options.length < 4) {
+      setCurrentMcq({ ...currentMcq, options: [...currentMcq.options, ''] });
+    }
+  };
+
+  const removeOption = (indexToRemove) => {
+    if (currentMcq.options.length > 2) {
+      const newOptions = currentMcq.options.filter((_, idx) => idx !== indexToRemove);
+      
+      // If the removed option was the correct answer, clear the correct answer
+      let newCorrectOption = currentMcq.correct_option;
+      if (currentMcq.correct_option === currentMcq.options[indexToRemove]) {
+        newCorrectOption = '';
+      }
+
+      setCurrentMcq({ ...currentMcq, options: newOptions, correct_option: newCorrectOption });
+    }
+  };
+
   // CRUD Operations
   const handleSaveMcq = async (e) => {
     e.preventDefault();
@@ -139,17 +166,30 @@ const McqQuestions = () => {
       return showToast('Please select a lesson for Lesson Specific scope.', 'error');
     }
 
-    // Validate that a correct option was selected and exists in the options array
-    if (!currentMcq.options.includes(currentMcq.correct_option) || currentMcq.correct_option.trim() === '') {
-      return showToast('Please select a valid correct option from the provided choices.', 'error');
+    let finalOptions = [];
+    let finalCorrectOption = null;
+
+    if (currentMcq.question_type === 'mcq') {
+      finalOptions = currentMcq.options.filter(opt => opt.trim() !== '');
+      if (finalOptions.length < 2) {
+        return showToast('Multiple choice questions require at least 2 valid options.', 'error');
+      }
+
+      // If a correct option is selected but it doesn't match any valid option text
+      if (currentMcq.correct_option && !finalOptions.includes(currentMcq.correct_option)) {
+         return showToast('Please select a valid correct option from the choices.', 'error');
+      }
+      finalCorrectOption = currentMcq.correct_option || null; // Convert empty string to null
     }
 
-    // Process payload based on scope
+    // Process payload
     const payload = {
       lesson_id: currentMcq.scope === 'global' ? null : parseInt(currentMcq.lesson_id),
+      question_type: currentMcq.question_type,
+      is_optional: currentMcq.is_optional,
       question_text: currentMcq.question_text,
-      options: currentMcq.options.filter(opt => opt.trim() !== ''), // Filter out empty options
-      correct_option: currentMcq.correct_option,
+      options: finalOptions,
+      correct_option: finalCorrectOption,
       question_order: currentMcq.question_order ? parseInt(currentMcq.question_order) : 1
     };
 
@@ -221,9 +261,9 @@ const McqQuestions = () => {
             </span>
           </div>
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
-            MCQ Question Bank
+            Question Bank
           </h1>
-          <p className="text-slate-500 mt-1 font-medium">Manage multiple choice questions used to evaluate lesson comprehension.</p>
+          <p className="text-slate-500 mt-1 font-medium">Manage multiple choice and text-based evaluation questions.</p>
         </div>
         <button 
           onClick={openAddModal}
@@ -320,9 +360,9 @@ const McqQuestions = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-1/3">Question</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Lesson Mapping</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Hierarchy</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-1/3">Question details</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Mapping</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Type / Rule</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Order</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Actions</th>
               </tr>
@@ -345,7 +385,7 @@ const McqQuestions = () => {
                   <td colSpan="5" className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center text-slate-400">
                       <ListChecks size={48} className="mb-4 opacity-20" />
-                      <p className="text-lg font-semibold text-slate-600">No MCQ questions created yet</p>
+                      <p className="text-lg font-semibold text-slate-600">No questions created yet</p>
                       <p className="text-sm mt-1">Start building evaluations by adding questions.</p>
                       <button onClick={openAddModal} className="mt-4 text-purple-600 font-medium hover:underline">
                         + Add Question
@@ -364,35 +404,52 @@ const McqQuestions = () => {
                     <tr key={mcq.id} className="hover:bg-slate-50/80 transition-colors group">
                       <td className="px-6 py-4 whitespace-normal">
                         <div className="font-bold text-slate-800 line-clamp-2">{mcq.question_text}</div>
-                        <div className="text-xs font-semibold text-emerald-600 mt-1 flex items-center gap-1">
-                          <CheckCircle2 size={12}/> {mcq.correct_option}
-                        </div>
+                        {mcq.question_type === 'mcq' && mcq.correct_option ? (
+                          <div className="text-xs font-semibold text-emerald-600 mt-1 flex items-center gap-1">
+                            <CheckCircle2 size={12}/> {mcq.correct_option}
+                          </div>
+                        ) : mcq.question_type === 'mcq' ? (
+                          <div className="text-xs font-semibold text-slate-400 mt-1 flex items-center gap-1">
+                            No correct answer required
+                          </div>
+                        ) : (
+                          <div className="text-xs font-semibold text-blue-500 mt-1 flex items-center gap-1">
+                            <AlignLeft size={12}/> Open text response
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-700 flex items-center gap-1.5">
+                        <div className="font-semibold text-slate-700 flex items-center gap-1.5 mb-1">
                           {lesson ? (
                             <><BookOpen size={14} className="text-orange-400"/> {lesson.title}</>
                           ) : (
-                            <><Globe size={14} className="text-purple-400"/> Global</>
+                            <><Globe size={14} className="text-purple-400"/> Global Form</>
+                          )}
+                        </div>
+                        {lesson && (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-400 mt-1">
+                            <Repeat size={12} className="text-rose-400" /> {habit ? habit.name : '-'}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          {mcq.question_type === 'text' ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">TEXT INPUT</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">MULTIPLE CHOICE</span>
+                          )}
+                        </div>
+                        <div>
+                          {mcq.is_optional ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">OPTIONAL</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">REQUIRED</span>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        {lesson ? (
-                          <>
-                            <div className="flex items-center gap-1.5 font-semibold text-slate-600">
-                              <Repeat size={14} className="text-rose-400" /> {habit ? habit.name : '-'}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-400 mt-1">
-                              <Layout size={12} className="text-teal-400" /> {domain ? domain.name : '-'}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">System Wide</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-50 text-purple-700 font-bold text-sm border border-purple-100">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-700 font-bold text-sm border border-slate-200">
                           {mcq.question_order || '-'}
                         </span>
                       </td>
@@ -428,7 +485,7 @@ const McqQuestions = () => {
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <ListChecks className="text-purple-500"/>
-                {modalMode === 'add' ? 'Create MCQ Question' : 'Edit Question Details'}
+                {modalMode === 'add' ? 'Create Question' : 'Edit Question Details'}
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
                 <X size={20} />
@@ -438,10 +495,10 @@ const McqQuestions = () => {
             <form onSubmit={handleSaveMcq} className="p-6 max-h-[80vh] overflow-y-auto">
               <div className="space-y-6">
                 
-                {/* Question Scope Selection */}
-                <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                {/* Row 1: Scope & Lesson */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                   <label className="block text-sm font-bold text-slate-700 mb-3">Question Scope *</label>
-                  <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4 mb-4">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input 
                         type="radio" name="scope" value="lesson" 
@@ -458,21 +515,14 @@ const McqQuestions = () => {
                         onChange={() => setCurrentMcq({...currentMcq, scope: 'global', lesson_id: ''})} 
                         className="w-4 h-4 text-purple-600 focus:ring-purple-500"
                       />
-                      <span className="text-sm font-bold text-slate-700">Global (Applies to all lessons)</span>
+                      <span className="text-sm font-bold text-slate-700">Global (All Lessons)</span>
                     </label>
                   </div>
-                  {currentMcq.scope === 'global' && (
-                    <p className="text-xs font-medium text-purple-600 mt-2 flex items-center gap-1.5">
-                      <Globe size={14} /> Global questions will appear for all lessons during teacher feedback.
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  
                   {currentMcq.scope === 'lesson' && (
-                    <div className="md:col-span-2 animate-in fade-in duration-300">
+                    <div className="animate-in fade-in duration-300 pt-2 border-t border-slate-200">
                       <label className="block text-sm font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                        <BookOpen size={14} className="text-orange-500"/> Associated Lesson *
+                        <BookOpen size={14} className="text-orange-500"/> Select Lesson *
                       </label>
                       <select 
                         required
@@ -492,8 +542,37 @@ const McqQuestions = () => {
                       </select>
                     </div>
                   )}
+                </div>
 
-                  <div className={currentMcq.scope === 'global' ? 'md:col-span-3' : ''}>
+                {/* Row 2: Type, Optional Toggle & Order */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Question Format *</label>
+                    <select 
+                      required
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium text-slate-800 bg-white"
+                      value={currentMcq.question_type}
+                      onChange={(e) => setCurrentMcq({...currentMcq, question_type: e.target.value, correct_option: ''})}
+                    >
+                      <option value="mcq">Multiple Choice</option>
+                      <option value="text">Text Input</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Requirement *</label>
+                    <select 
+                      required
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium text-slate-800 bg-white"
+                      value={currentMcq.is_optional ? 'true' : 'false'}
+                      onChange={(e) => setCurrentMcq({...currentMcq, is_optional: e.target.value === 'true'})}
+                    >
+                      <option value="false">Mandatory / Required</option>
+                      <option value="true">Optional</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-1">
                     <label className="block text-sm font-bold text-slate-700 mb-1.5">Question Order *</label>
                     <input 
                       type="number" required min="1"
@@ -505,55 +584,84 @@ const McqQuestions = () => {
                   </div>
                 </div>
 
+                {/* Row 3: Question Text */}
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                    <HelpCircle size={14} className="text-purple-500"/> Question Text *
+                    <HelpCircle size={14} className="text-purple-500"/> Question Prompt *
                   </label>
                   <textarea 
                     required rows="3"
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium text-slate-800 resize-none"
-                    placeholder="Enter the question here..."
+                    placeholder="Enter the question text here..."
                     value={currentMcq.question_text}
                     onChange={(e) => setCurrentMcq({...currentMcq, question_text: e.target.value})}
                   ></textarea>
                 </div>
 
-                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-                  <h4 className="text-sm font-bold text-slate-800 mb-2">Answer Options</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentMcq.options.map((option, index) => (
-                      <div key={index}>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Option {index + 1} *</label>
-                        <input 
-                          type="text" required
-                          className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium text-slate-800"
-                          placeholder={`Option ${index + 1}`}
-                          value={option}
-                          onChange={(e) => handleOptionChange(index, e.target.value)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="pt-4 mt-2 border-t border-slate-200">
-                    <label className="block text-sm font-bold text-emerald-700 mb-1.5 flex items-center gap-1.5">
-                      <CheckCircle2 size={16}/> Select Correct Option *
-                    </label>
-                    <select 
-                      required
-                      className="w-full px-4 py-2.5 border border-emerald-200 bg-emerald-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-800"
-                      value={currentMcq.correct_option}
-                      onChange={(e) => setCurrentMcq({...currentMcq, correct_option: e.target.value})}
-                    >
-                      <option value="" disabled>-- Choose the correct answer --</option>
-                      {currentMcq.options.map((opt, i) => (
-                        opt.trim() !== '' && (
-                          <option key={i} value={opt}>{opt}</option>
-                        )
+                {/* Row 4: Multiple Choice Options (Only if type == mcq) */}
+                {currentMcq.question_type === 'mcq' && (
+                  <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-slate-800">Answer Options (Min 2, Max 4)</h4>
+                      {currentMcq.options.length < 4 && (
+                        <button 
+                          type="button" 
+                          onClick={addOption}
+                          className="text-xs font-bold text-purple-600 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                        >
+                          <PlusCircle size={14} /> Add Option
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                      {currentMcq.options.map((option, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <span className="font-bold text-slate-400 text-sm w-6">{index + 1}.</span>
+                          <input 
+                            type="text" required
+                            className="flex-1 px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium text-slate-800"
+                            placeholder={`Option ${index + 1} text`}
+                            value={option}
+                            onChange={(e) => handleOptionChange(index, e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeOption(index)}
+                            disabled={currentMcq.options.length <= 2}
+                            className={`p-2 rounded-lg transition-colors ${
+                              currentMcq.options.length <= 2 
+                                ? 'text-slate-300 cursor-not-allowed' 
+                                : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
+                            }`}
+                            title={currentMcq.options.length <= 2 ? "Minimum 2 options required" : "Remove Option"}
+                          >
+                            <MinusCircle size={18} />
+                          </button>
+                        </div>
                       ))}
-                    </select>
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-slate-200">
+                      <label className="block text-sm font-bold text-emerald-700 mb-1.5 flex items-center gap-1.5">
+                        <CheckCircle2 size={16}/> Correct Answer (Optional)
+                      </label>
+                      <p className="text-xs text-slate-500 mb-2">Leave blank if there is no right or wrong answer.</p>
+                      <select 
+                        className="w-full px-4 py-2.5 border border-emerald-200 bg-emerald-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-800"
+                        value={currentMcq.correct_option}
+                        onChange={(e) => setCurrentMcq({...currentMcq, correct_option: e.target.value})}
+                      >
+                        <option value="">-- No Correct Answer --</option>
+                        {currentMcq.options.map((opt, i) => (
+                          opt.trim() !== '' && (
+                            <option key={i} value={opt}>{opt}</option>
+                          )
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
 

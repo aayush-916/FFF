@@ -199,7 +199,7 @@ const Users = () => {
           <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
             User Management
           </h1>
-          <p className="text-slate-500 mt-1 font-medium">Manage NGO staff and School Admins. Teachers are managed by schools.</p>
+          <p className="text-slate-500 mt-1 font-medium">Manage FFF staff and School Admins. Teachers are managed by schools.</p>
         </div>
         <button 
           onClick={openAddModal}
@@ -232,7 +232,7 @@ const Users = () => {
               >
                 <option value="All">All Roles</option>
                 <option value="school_super_admin">school_super_admin</option>
-                <option value="ngo_staff">NGO Staff</option>
+                <option value="ngo_staff">FFF Staff</option>
                 <option value="teacher">Teachers</option>
               </select>
             </div>
@@ -393,7 +393,7 @@ const Users = () => {
                       <option value="teacher">Teacher</option>
                     )}
                     <option value="school_admin">School Admin</option>
-                    <option value="ngo_staff">NGO Staff</option>
+                    <option value="ngo_staff">FFF Staff</option>
                   </select>
                 </div>
 

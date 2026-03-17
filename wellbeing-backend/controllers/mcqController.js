@@ -1,68 +1,94 @@
-const mcqService = require('../services/mcqService');
+const mcqModel = require('../models/mcqModel');
 
-const handleError = (res, error) => {
-    console.error('MCQ API Error:', error.message);
-    if (error.message.includes('NOT_FOUND')) {
-        return res.status(404).json({ success: false, message: error.message.replace('NOT_FOUND: ', '') });
-    }
-    if (error.message.includes('BAD_REQUEST')) {
-        return res.status(400).json({ success: false, message: error.message.replace('BAD_REQUEST: ', '') });
-    }
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
-};
-
-// @desc    Create a new MCQ Question
-// @route   POST /api/v1/mcq
-exports.createMcq = async (req, res) => {
+exports.getQuestions = async (req, res) => {
     try {
-        const newMcq = await mcqService.createMcq(req.body);
-        res.status(201).json({ success: true, data: newMcq });
+        const questions = await mcqModel.findAll();
+        res.status(200).json({ success: true, count: questions.length, data: questions });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error fetching questions:", error);
+        res.status(500).json({ success: false, message: 'Server error fetching questions' });
     }
 };
 
-// @desc    Get all MCQ Questions (supports filtering by ?lesson_id=1)
-// @route   GET /api/v1/mcq
-exports.getMcqs = async (req, res) => {
+exports.getQuestion = async (req, res) => {
     try {
-        const { lesson_id } = req.query;
-        const mcqs = await mcqService.getAllMcqs(lesson_id);
-        res.status(200).json({ success: true, count: mcqs.length, data: mcqs });
+        const question = await mcqModel.findById(req.params.id);
+        if (!question) {
+            return res.status(404).json({ success: false, message: 'Question not found' });
+        }
+        res.status(200).json({ success: true, data: question });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error fetching question:", error);
+        res.status(500).json({ success: false, message: 'Server error fetching question' });
     }
 };
 
-// @desc    Get single MCQ Question
-// @route   GET /api/v1/mcq/:id
-exports.getMcq = async (req, res) => {
+exports.createQuestion = async (req, res) => {
     try {
-        const mcq = await mcqService.getMcqById(req.params.id);
-        res.status(200).json({ success: true, data: mcq });
+        const newId = await mcqModel.createQuestion(req.body);
+        const newQuestion = await mcqModel.findById(newId);
+        
+        res.status(201).json({ 
+            success: true, 
+            message: 'Question created successfully', 
+            data: newQuestion 
+        });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error creating question:", error);
+        res.status(500).json({ success: false, message: 'Server error creating question' });
     }
 };
 
-// @desc    Update MCQ Question
-// @route   PUT /api/v1/mcq/:id
-exports.updateMcq = async (req, res) => {
+exports.updateQuestion = async (req, res) => {
     try {
-        const updatedMcq = await mcqService.updateMcq(req.params.id, req.body);
-        res.status(200).json({ success: true, data: updatedMcq });
+        const affectedRows = await mcqModel.updateQuestion(req.params.id, req.body);
+        if (affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Question not found' });
+        }
+        
+        const updatedQuestion = await mcqModel.findById(req.params.id);
+        res.status(200).json({ success: true, message: 'Question updated successfully', data: updatedQuestion });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error updating question:", error);
+        res.status(500).json({ success: false, message: 'Server error updating question' });
     }
 };
 
-// @desc    Delete MCQ Question
-// @route   DELETE /api/v1/mcq/:id
-exports.deleteMcq = async (req, res) => {
+exports.deleteQuestion = async (req, res) => {
     try {
-        await mcqService.deleteMcq(req.params.id);
-        res.status(200).json({ success: true, message: 'MCQ Question deleted successfully' });
+        const affectedRows = await mcqModel.deleteQuestion(req.params.id);
+        if (affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Question not found' });
+        }
+        res.status(200).json({ success: true, message: 'Question deleted successfully' });
     } catch (error) {
-        handleError(res, error);
+        console.error("Error deleting question:", error);
+        res.status(500).json({ success: false, message: 'Server error deleting question' });
+    }
+};
+
+// --- SCHOOL PANEL FUNCTIONS ---
+
+exports.submitResponses = async (req, res) => {
+    try {
+        const { session_id, responses } = req.body;
+
+        if (!session_id || !Array.isArray(responses) || responses.length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Invalid payload: session_id and a responses array are required.' 
+            });
+        }
+
+        // Bulk insert all answers to the database
+        await mcqModel.saveResponses(session_id, responses);
+
+        res.status(201).json({ 
+            success: true, 
+            message: 'Assessment submitted successfully' 
+        });
+    } catch (error) {
+        console.error("Error submitting responses:", error);
+        res.status(500).json({ success: false, message: 'Server error submitting assessment' });
     }
 };

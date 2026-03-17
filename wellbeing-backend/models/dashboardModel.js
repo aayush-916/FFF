@@ -55,9 +55,6 @@ exports.getNgoStats = async () => {
     };
 };
 
-// Add this below exports.getNgoStats
-// Inside models/dashboardModel.js
-
 exports.getSchoolStats = async (schoolId) => {
     // 1. Total Teachers (Count of teachers and school admins)
     const teachersPromise = pool.query(`
@@ -96,7 +93,7 @@ exports.getSchoolStats = async (schoolId) => {
         ORDER BY class_number
     `, [schoolId]);
 
-    // 6. EXISTING: Domain Progress (Keep your existing query logic here!)
+    // 6. Domain Progress
     const domainProgressPromise = pool.query(`
         SELECT d.name as domain, 
                ROUND(COALESCE((COUNT(sf.id) / 10) * 100, 0)) as percentage 
@@ -106,11 +103,11 @@ exports.getSchoolStats = async (schoolId) => {
         GROUP BY d.id
     `, [schoolId]);
 
-    // 7. EXISTING: Recent Sessions (With our fixed lesson_id join!)
+    // 7. Recent Sessions (Bypass lessons and join habits directly via sf.habit_id)
     const recentSessionsPromise = pool.query(`
-        SELECT l.title as lesson_title, sf.class_number, sf.section, sf.conducted_at as created_at 
+        SELECT h.name as lesson_title, sf.class_number, sf.section, sf.conducted_at as created_at 
         FROM session_feedback sf
-        LEFT JOIN lessons l ON sf.lesson_id = l.id
+        LEFT JOIN habits h ON sf.habit_id = h.id
         WHERE sf.school_id = ? 
         ORDER BY sf.conducted_at DESC 
         LIMIT 5
@@ -136,7 +133,6 @@ exports.getSchoolStats = async (schoolId) => {
         recentSessions: recentSessRes
     };
 };
-// Add this below your existing getSchoolStats function
 
 exports.getTeacherStats = async (teacherId) => {
     // 1. Total Sessions by this specific teacher
@@ -151,19 +147,19 @@ exports.getTeacherStats = async (teacherId) => {
     // 4. Last Session Date
     const lastSessionPromise = pool.query('SELECT MAX(conducted_at) as last_session FROM session_feedback WHERE teacher_id = ?', [teacherId]);
     
-    // 5. Recent Sessions (Limit 5)
-   const recentSessionsPromise = pool.query(`
-    SELECT l.title as lesson_title, sf.class_number, sf.section, sf.conducted_at as created_at 
-    FROM session_feedback sf
-    LEFT JOIN lessons l ON sf.lesson_id = l.id
-    WHERE sf.teacher_id = ? 
-    ORDER BY sf.conducted_at DESC 
-    LIMIT 5
-`, [teacherId]); // 👈 Uses teacherId
+    // 5. Recent Sessions (Bypass lessons and join habits directly via sf.habit_id)
+    const recentSessionsPromise = pool.query(`
+        SELECT h.name as lesson_title, sf.class_number, sf.section, sf.conducted_at as created_at 
+        FROM session_feedback sf
+        LEFT JOIN habits h ON sf.habit_id = h.id
+        WHERE sf.teacher_id = ? 
+        ORDER BY sf.conducted_at DESC 
+        LIMIT 5
+    `, [teacherId]);
     
-    // 6. Suggested Lesson (A lesson this specific teacher hasn't taught yet)
+    // 6. Suggested Lesson (FIXED: Replaced l.title with h.name as title to maintain the JSON contract)
     const suggestedLessonPromise = pool.query(`
-        SELECT d.name as domain, h.name as habit, l.title
+        SELECT d.name as domain, h.name as habit, h.name as title, l.type as lesson_type
         FROM lessons l
         JOIN habits h ON l.habit_id = h.id
         JOIN domains d ON h.domain_id = d.id
@@ -196,4 +192,3 @@ exports.getTeacherStats = async (teacherId) => {
         suggestedLesson: suggestedLessonRows[0] || null
     };
 };
-

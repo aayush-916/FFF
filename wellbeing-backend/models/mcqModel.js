@@ -1,77 +1,78 @@
 const pool = require('../config/db');
 
-exports.create = async (mcqData) => {
-    const { lesson_id, question_text, options, correct_option, question_order } = mcqData;
-    const query = `
-        INSERT INTO mcq_questions (lesson_id, question_text, options, correct_option, question_order) 
-        VALUES (?, ?, ?, ?, ?)
-    `;
-    
-    // lesson_id is explicitly set to null if not provided
-    const [result] = await pool.query(query, [
-        lesson_id || null, 
-        question_text, 
-        options, 
-        correct_option, 
-        question_order || 0
-    ]);
-    return result.insertId;
-};
-
-exports.findAll = async (lessonId) => {
-    let query = 'SELECT * FROM mcq_questions';
-    const queryParams = [];
-
-    if (lessonId) {
-        // Fetch questions specific to this lesson OR global questions
-        query += ' WHERE lesson_id = ? OR lesson_id IS NULL';
-        queryParams.push(lessonId);
-    }
-
-    // Force global questions (lesson_id IS NULL) to the top, then sort by question_order
-    query += `
-        ORDER BY 
-            CASE 
-                WHEN lesson_id IS NULL THEN 0 
-                ELSE 1 
-            END ASC,
-            question_order ASC
-    `;
-    
-    const [rows] = await pool.query(query, queryParams);
+exports.findAll = async () => {
+    const [rows] = await pool.query('SELECT * FROM mcq_questions ORDER BY question_order ASC');
     return rows;
 };
 
 exports.findById = async (id) => {
-    const query = 'SELECT * FROM mcq_questions WHERE id = ?';
-    const [rows] = await pool.query(query, [id]);
+    const [rows] = await pool.query('SELECT * FROM mcq_questions WHERE id = ?', [id]);
     return rows[0];
 };
 
-exports.update = async (id, mcqData) => {
-    const fields = [];
-    const values = [];
-    const allowedFields = ['lesson_id', 'question_text', 'options', 'correct_option', 'question_order'];
+exports.createQuestion = async (data) => {
+    const query = `
+        INSERT INTO mcq_questions 
+        (lesson_id, question_type, is_optional, question_text, options, correct_option, question_order) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
     
-    for (const key of allowedFields) {
-        if (mcqData[key] !== undefined) {
-            fields.push(`${key} = ?`);
-            // lesson_id can be explicitly set to null to make a specific question global
-            values.push(mcqData[key] === '' ? null : mcqData[key]); 
-        }
-    }
+    // Ensure options is stringified JSON, even if it's an empty array
+    const optionsJson = data.options ? JSON.stringify(data.options) : JSON.stringify([]);
 
-    if (fields.length === 0) return 0;
+    const [result] = await pool.query(query, [
+        data.lesson_id || null,
+        data.question_type || 'mcq',
+        data.is_optional ? 1 : 0,
+        data.question_text,
+        optionsJson,
+        data.correct_option || null,
+        data.question_order || 0
+    ]);
+    return result.insertId;
+};
 
-    const query = `UPDATE mcq_questions SET ${fields.join(', ')} WHERE id = ?`;
-    values.push(id);
+exports.updateQuestion = async (id, data) => {
+    const query = `
+        UPDATE mcq_questions 
+        SET lesson_id = ?, question_type = ?, is_optional = ?, question_text = ?, 
+            options = ?, correct_option = ?, question_order = ?
+        WHERE id = ?
+    `;
+    
+    const optionsJson = data.options ? JSON.stringify(data.options) : JSON.stringify([]);
 
-    const [result] = await pool.query(query, values);
+    const [result] = await pool.query(query, [
+        data.lesson_id || null,
+        data.question_type || 'mcq',
+        data.is_optional ? 1 : 0,
+        data.question_text,
+        optionsJson,
+        data.correct_option || null,
+        data.question_order || 0,
+        id
+    ]);
     return result.affectedRows;
 };
 
-exports.delete = async (id) => {
-    const query = 'DELETE FROM mcq_questions WHERE id = ?';
-    const [result] = await pool.query(query, [id]);
+exports.deleteQuestion = async (id) => {
+    const [result] = await pool.query('DELETE FROM mcq_questions WHERE id = ?', [id]);
     return result.affectedRows;
+};
+
+// --- SCHOOL PANEL FUNCTIONS ---
+
+exports.saveResponses = async (sessionId, responses) => {
+    if (!responses || responses.length === 0) return;
+
+    // Map the incoming array into a nested array for a bulk SQL insert
+    const values = responses.map(r => [
+        sessionId,
+        r.question_id,
+        r.selected_option || null, // Will be null for text questions
+        r.text_answer || null      // Will be null for mcq questions
+    ]);
+
+    const query = `INSERT INTO mcq_responses (session_id, question_id, selected_option, text_answer) VALUES ?`;
+    await pool.query(query, [values]);
 };

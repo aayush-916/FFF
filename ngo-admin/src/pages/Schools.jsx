@@ -12,7 +12,10 @@ import {
   Filter,
   Phone,
   User,
-  ShieldCheck
+  ShieldCheck,
+  UploadCloud,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import api from '../api/axios';
 
@@ -53,6 +56,11 @@ const Schools = () => {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [newlyCreatedSchool, setNewlyCreatedSchool] = useState({ id: null, name: '' });
   const [adminForm, setAdminForm] = useState(initialAdminState);
+
+  // Bulk Upload States
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Delete Confirmation State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -109,6 +117,49 @@ const Schools = () => {
   const openDeleteModal = (school) => {
     setSchoolToDelete(school);
     setIsDeleteModalOpen(true);
+  };
+
+  const openBulkModal = () => {
+    setBulkFile(null);
+    setIsBulkModalOpen(true);
+  };
+
+  // --- CSV TEMPLATE DOWNLOAD ---
+  const handleDownloadTemplate = () => {
+    const headers = "name,code,cluster_id,city,state,contact_person,contact_email,contact_phone,status\n";
+    const sample = "Example Public School,EPS001,1,New Delhi,Delhi,Admin Sharma,admin@example.com,9876543210,Active\n";
+    const blob = new Blob([headers + sample], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'Bulk_Schools_Template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // --- BULK UPLOAD HANDLER ---
+  const handleBulkUpload = async (e) => {
+    e.preventDefault();
+    if (!bulkFile) return showToast('Please select a file to upload.', 'error');
+
+    const formData = new FormData();
+    formData.append('file', bulkFile); // Make sure your backend expects a field named 'file'
+
+    setIsUploading(true);
+    try {
+      // Adjust this endpoint URL if your backend uses a different path for bulk uploads
+      await api.post('/schools/bulk', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      showToast('Schools registered successfully via bulk upload!');
+      setIsBulkModalOpen(false);
+      fetchData();
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to process bulk upload.', 'error');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // --- STEP 1: Save School ---
@@ -208,13 +259,22 @@ const Schools = () => {
           </h1>
           <p className="text-slate-500 mt-1 font-medium">Register and oversee participating schools within your clusters.</p>
         </div>
-        <button 
-          onClick={openAddModal}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm shadow-blue-200 transition-all duration-200"
-        >
-          <Plus size={18} />
-          Register School
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={openBulkModal}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 rounded-xl font-semibold shadow-sm transition-all duration-200"
+          >
+            <UploadCloud size={18} className="text-blue-500" />
+            Bulk Upload
+          </button>
+          <button 
+            onClick={openAddModal}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm shadow-blue-200 transition-all duration-200"
+          >
+            <Plus size={18} />
+            Register School
+          </button>
+        </div>
       </div>
 
       {/* MAIN CONTENT CARD */}
@@ -327,6 +387,88 @@ const Schools = () => {
           </table>
         </div>
       </div>
+
+      {/* --- BULK UPLOAD MODAL --- */}
+      {isBulkModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white text-center relative">
+              <button onClick={() => setIsBulkModalOpen(false)} className="absolute top-4 right-4 text-blue-200 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
+                <UploadCloud size={32} />
+              </div>
+              <h3 className="text-xl font-bold mb-1">Bulk Register Schools</h3>
+              <p className="text-blue-100 text-sm font-medium">Upload a CSV or Excel file to add multiple schools at once.</p>
+            </div>
+            
+            <form onSubmit={handleBulkUpload} className="p-6">
+              
+              <div className="mb-6 bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
+                <FileSpreadsheet size={24} className="text-blue-500 shrink-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-blue-900 mb-1">Need the correct format?</h4>
+                  <p className="text-xs font-medium text-blue-700 mb-2">Ensure your columns match our system requirements.</p>
+                  <button 
+                    type="button" 
+                    onClick={handleDownloadTemplate}
+                    className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline"
+                  >
+                    <Download size={14} /> Download Template
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-slate-700 mb-2">Select File (.csv, .xlsx)</label>
+                <div className="border-2 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50 hover:bg-blue-50/50 rounded-xl p-6 transition-colors relative cursor-pointer flex flex-col items-center justify-center text-center group">
+                  <input 
+                    type="file" 
+                    required
+                    accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                    onChange={(e) => setBulkFile(e.target.files[0])}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <UploadCloud size={32} className={`mb-2 ${bulkFile ? 'text-blue-500' : 'text-slate-400 group-hover:text-blue-400'}`} />
+                  {bulkFile ? (
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">{bulkFile.name}</p>
+                      <p className="text-xs font-medium text-slate-400 mt-1">Ready to upload</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-bold text-slate-600">Drag & drop or click to browse</p>
+                      <p className="text-xs font-medium text-slate-400 mt-1">Maximum file size 5MB</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setIsBulkModalOpen(false)}
+                  className="px-6 py-2.5 rounded-xl font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isUploading || !bulkFile}
+                  className="px-6 py-2.5 rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-200 transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {isUploading ? (
+                    <><UploadCloud size={16} className="animate-bounce" /> Processing...</>
+                  ) : (
+                    'Upload & Register'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* --- STEP 1 MODAL: ADD/EDIT SCHOOL --- */}
       {isModalOpen && (
