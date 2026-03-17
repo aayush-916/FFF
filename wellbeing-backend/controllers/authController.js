@@ -28,8 +28,10 @@ exports.login = async (req, res) => {
         // Set the token in an HttpOnly cookie
         res.cookie('token', result.token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production', // Use secure cookies in production with HTTPS
-            sameSite: 'Strict',
+            // secure: process.env.NODE_ENV === 'production', // Use secure cookies in production with HTTPS
+            // sameSite: 'Strict',
+            secure: true,
+            sameSite: 'None',
             maxAge: 365 * 24 * 60 * 60 * 1000 // 1 year expiry
         });
 

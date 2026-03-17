@@ -25,12 +25,27 @@ const PORT = process.env.PORT || 5000;
 // Middlewares
 // ==========================================
 // Enable Cross-Origin Resource Sharing with credentials for React
+// app.use(cors({
+//     origin: ["http://localhost:5173",
+//     "http://localhost:5174"],
+//     credentials: true
+// }));
+
 app.use(cors({
-    origin: ["http://localhost:5173",
-    "http://localhost:5174"],
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like Postman or curl)
+        if (!origin) return callback(null, true);
+        
+        // Dynamically allow any localhost or any ngrok URL
+        if (origin.startsWith('http://localhost') || origin.endsWith('.ngrok-free.app')) {
+            return callback(null, true);
+        }
+        
+        // Block anything else from accessing your API
+        return callback(new Error('Not allowed by CORS'), false);
+    },
     credentials: true
 }));
-
 
 app.use(express.json()); // Parse incoming JSON payloads
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies

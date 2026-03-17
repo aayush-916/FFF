@@ -13,20 +13,16 @@ exports.create = async (sessionData) => {
     return result.insertId;
 };
 
-// Added LEFT JOIN for lessons to retrieve lesson_title based on habit and class
-// Inside models/sessionModel.js
-
 exports.findAll = async (filters) => {
     let query = `
         SELECT sf.id, sf.school_id, sf.teacher_id, sf.habit_id, sf.class_number, 
                sf.section, sf.conducted_at as created_at, sf.lesson_id,
                s.name as school_name, u.name as teacher_name, 
-               h.name as habit_name, l.title as lesson_title
+               h.name as habit_name, h.name as lesson_title 
         FROM session_feedback sf
         LEFT JOIN schools s ON sf.school_id = s.id
         LEFT JOIN users u ON sf.teacher_id = u.id
         LEFT JOIN habits h ON sf.habit_id = h.id
-        -- 👇 YOUR PERFECT LOGIC HERE 👇
         LEFT JOIN lessons l ON sf.lesson_id = l.id
         WHERE 1=1
     `;
@@ -57,12 +53,11 @@ exports.findById = async (id) => {
         SELECT sf.id, sf.school_id, sf.teacher_id, sf.habit_id, sf.class_number, 
                sf.section, sf.conducted_at as created_at, sf.lesson_id,
                s.name as school_name, u.name as teacher_name, 
-               h.name as habit_name, l.title as lesson_title
+               h.name as habit_name, h.name as lesson_title 
         FROM session_feedback sf
         LEFT JOIN schools s ON sf.school_id = s.id
         LEFT JOIN users u ON sf.teacher_id = u.id
         LEFT JOIN habits h ON sf.habit_id = h.id
-        -- 👇 YOUR PERFECT LOGIC HERE 👇
         LEFT JOIN lessons l ON sf.lesson_id = l.id
         WHERE sf.id = ?
     `;
