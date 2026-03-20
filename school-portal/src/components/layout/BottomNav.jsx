@@ -60,7 +60,7 @@ const BottomNav = () => {
   const navItems = [
     { name: 'Home',     path: '/',                icon: Home,          roles: ['teacher', 'school_admin', 'school_super_admin'] },
     { name: 'Lessons',  path: '/lessons',         icon: BookOpen,      roles: ['teacher', 'school_admin'] },
-    { name: 'Sessions', path: '/sessions',        icon: CheckSquare,   roles: ['teacher', 'school_admin'] },
+    { name: 'Progress', path: '/sessions',        icon: CheckSquare,   roles: ['teacher', 'school_admin'] },
     { name: 'Teachers', path: '/admin/teachers',  icon: Users,         roles: ['school_admin', 'school_super_admin'] },
     { name: 'Classes',  path: '/admin/classes',   icon: Layers,        roles: ['school_admin', 'school_super_admin'] },
     { name: 'Assess',   path: '/assessments',     icon: ClipboardList, roles: ['school_admin', 'school_super_admin'] },

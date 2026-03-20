@@ -55,17 +55,46 @@ exports.getSchoolDashboard = async (req, res) => {
 // @access  Private (teacher, school_admin)
 exports.getTeacherDashboard = async (req, res) => {
     try {
-        const teacherId = req.user.user_id; // user_id is extracted from the JWT by authMiddleware
+        // user_id is extracted from the JWT by authMiddleware
+        const teacherId = req.user.user_id; 
 
-        const dashboardData = await dashboardService.getTeacherDashboardData(teacherId);
+        // 👇 CHANGED: Now points directly to our newly built Classroom Manager logic
+        const dashboardData = await dashboardModel.getTeacherStats(teacherId);
 
         res.status(200).json({
             success: true,
-            data: dashboardData // Wrapped in 'data' object per your requirements
+            data: dashboardData 
         });
 
     } catch (error) {
         console.error('Teacher Dashboard API Error:', error.message);
+        res.status(500).json({ success: false, message: 'Internal Server Error' });
+    }
+};
+
+
+
+// Add this to controllers/dashboardController.js
+
+exports.getSchoolAdminDashboard = async (req, res) => {
+    try {
+        // Extract the school ID securely from the admin's JWT token
+        const schoolId = req.user.school_id; 
+
+        if (!schoolId) {
+            return res.status(403).json({ success: false, message: 'No school associated with this admin account.' });
+        }
+
+        // Fetch our newly built School Admin data
+        const dashboardData = await dashboardModel.getSchoolAdminDashboard(schoolId);
+
+        res.status(200).json({
+            success: true,
+            data: dashboardData 
+        });
+
+    } catch (error) {
+        console.error('School Admin Dashboard API Error:', error);
         res.status(500).json({ success: false, message: 'Internal Server Error' });
     }
 };

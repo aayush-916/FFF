@@ -166,7 +166,7 @@ const TopHeader = ({ openSidebar }) => {
           </button>
           <div className="th-logo">
             <div className="th-logo-dot" />
-            <span className="th-logo-text">School Portal</span>
+            <span className="th-logo-text">Teacher Portal</span>
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 const sessionService = require('../services/sessionService');
+const sessionModel = require('../models/sessionModel');
 
 const handleError = (res, error) => {
     console.error('Session API Error:', error.message);
@@ -75,5 +76,52 @@ exports.getSession = async (req, res) => {
         res.status(200).json({ success: true, data: session });
     } catch (error) {
         handleError(res, error);
+    }
+};
+
+exports.markLessonComplete = async (req, res) => {
+    try {
+        // 👇 Removed school_id from here!
+        const { habit_id, parent_lesson_id, material_id, class_number, section } = req.body;
+        
+        // Extract teacher ID securely from the JWT token
+        const teacher_id = req.user.user_id; 
+
+        // 1. Validate payload
+        if (!habit_id || !parent_lesson_id || !material_id || !class_number || !section) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Missing required fields: habit_id, parent_lesson_id, material_id, class_number, section.' 
+            });
+        }
+
+        // 2. Save to database (The model handles finding the school_id now)
+        const result = await sessionModel.markMaterialComplete({
+            teacher_id,
+            habit_id,
+            parent_lesson_id,
+            material_id,
+            class_number,
+            section
+        });
+
+        // 3. Send success response
+        if (result.alreadyCompleted) {
+            return res.status(200).json({ 
+                success: true, 
+                message: 'Lesson was already marked as complete.', 
+                id: result.id 
+            });
+        }
+
+        res.status(201).json({ 
+            success: true, 
+            message: 'Lesson successfully marked as complete!', 
+            id: result.id 
+        });
+
+    } catch (error) {
+        console.error("Error marking lesson complete:", error);
+        res.status(500).json({ success: false, message: 'Server error marking lesson complete' });
     }
 };

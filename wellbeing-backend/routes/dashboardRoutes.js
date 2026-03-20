@@ -10,12 +10,7 @@ router.use(protect);
 // NGO Dashboard
 router.get('/ngo', allowRoles('ngo_super_admin'), dashboardController.getNgoDashboard);
 
-// School Dashboard (Accessible by School Super Admin & School Admin)
-router.get(
-    '/school', 
-    allowRoles('school_super_admin', 'school_admin'), 
-    dashboardController.getSchoolDashboard
-);
+
 
 // Teacher Dashboard (Accessible by School Admin & Teacher)
 router.get(
@@ -23,5 +18,13 @@ router.get(
     allowRoles('school_admin', 'teacher'), 
     dashboardController.getTeacherDashboard
 );
+
+router.get(
+    '/school', 
+    protect, 
+    allowRoles('school_admin', 'school_super_admin'), 
+    dashboardController.getSchoolAdminDashboard
+);
+
 
 module.exports = router;

@@ -207,6 +207,7 @@ const Profile = () => {
         if (user.role !== 'school_super_admin') {
           try {
             const classesRes = await api.get('/teacher/classes');
+            // console.log('Assigned Classes:', classesRes.data.data || classesRes.data || []);
             setAssignedClasses(classesRes.data.data || classesRes.data || []);
           } catch (classErr) {
             console.error('Failed to fetch assigned classes:', classErr);

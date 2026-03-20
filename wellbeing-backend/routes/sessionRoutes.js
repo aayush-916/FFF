@@ -20,4 +20,11 @@ router.post(
     sessionController.createSession
 );
 
+router.post(
+    '/mark-complete', 
+    protect, 
+    allowRoles('teacher', 'school_admin'), 
+    sessionController.markLessonComplete
+);
+
 module.exports = router;

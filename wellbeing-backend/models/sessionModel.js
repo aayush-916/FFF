@@ -64,3 +64,46 @@ exports.findById = async (id) => {
     const [rows] = await pool.query(query, [id]);
     return rows[0];
 };
+
+// Add this new function to models/sessionModel.js
+exports.markMaterialComplete = async (data) => {
+    // 1. Securely fetch the school_id directly from the teacher's profile
+    const [teacherRecord] = await pool.query(`SELECT school_id FROM users WHERE id = ?`, [data.teacher_id]);
+    
+    if (teacherRecord.length === 0) {
+        throw new Error("Teacher not found");
+    }
+    const secureSchoolId = teacherRecord[0].school_id;
+
+    // 2. Prevent duplicate clicks
+    const checkQuery = `
+        SELECT id FROM session_feedback 
+        WHERE teacher_id = ? AND material_id = ? AND class_number = ? AND section = ?
+    `;
+    const [existing] = await pool.query(checkQuery, [
+        data.teacher_id, data.material_id, data.class_number, data.section
+    ]);
+
+    if (existing.length > 0) {
+        return { alreadyCompleted: true, id: existing[0].id };
+    }
+
+    // 3. Insert the new completion record using the secureSchoolId
+    const query = `
+        INSERT INTO session_feedback 
+        (school_id, teacher_id, habit_id, lesson_id, material_id, class_number, section) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    const [result] = await pool.query(query, [
+        secureSchoolId, // 👈 Look ma, no frontend data needed!
+        data.teacher_id,
+        data.habit_id,
+        data.parent_lesson_id, 
+        data.material_id,
+        data.class_number,
+        data.section
+    ]);
+    
+    return { alreadyCompleted: false, id: result.insertId };
+};
