@@ -33,15 +33,18 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like Postman or curl)
+        // Allow requests with no origin (Postman, curl, mobile apps)
         if (!origin) return callback(null, true);
-        
-        // Dynamically allow any localhost or any ngrok URL
-        if (origin.startsWith('http://localhost') || origin.endsWith('.ngrok-free.app')) {
+
+        const allowedOrigins = [
+            'https://school.aanyasolutions.com',
+            'https://fff.aanyasolutions.com'
+        ];
+
+        if (allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
-        
-        // Block anything else from accessing your API
+
         return callback(new Error('Not allowed by CORS'), false);
     },
     credentials: true

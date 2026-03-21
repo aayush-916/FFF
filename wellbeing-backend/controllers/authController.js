@@ -27,13 +27,13 @@ exports.login = async (req, res) => {
         
         // Set the token in an HttpOnly cookie
         res.cookie('token', result.token, {
-            httpOnly: true,
-            // secure: process.env.NODE_ENV === 'production', // Use secure cookies in production with HTTPS
-            // sameSite: 'Strict',
-            secure: true,
-            sameSite: 'None',
-            maxAge: 365 * 24 * 60 * 60 * 1000 // 1 year expiry
-        });
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    domain: '.aanyasolutions.com', // 🔥 IMPORTANT (add this back)
+    path: '/',
+    maxAge: 365 * 24 * 60 * 60 * 1000
+});
 
         // Return the user data (without the token) AND the force_password_change flag
         res.status(200).json({

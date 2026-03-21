@@ -136,7 +136,7 @@ const TeacherDashboard = () => {
   const getFileUrl = (fp) => {
     if (!fp) return "";
     if (fp.startsWith("http")) return fp;
-    return `https://29a3-49-36-144-43.ngrok-free.app/${fp.replace(/^\//, "")}`;
+    return `https://api.aanyasolutions.com/${fp.replace(/^\//, "")}`;
   };
 
   const fetchDashboardData = async () => {
