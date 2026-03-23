@@ -383,7 +383,7 @@ const TeacherDashboard = () => {
                 lineHeight: 1.2,
               }}
             >
-              Master Curriculum
+              Habit Tracker
             </h1>
             <p style={{ fontSize: 12, color: T.sec, marginTop: 2 }}>
               Track progress & teach across all classes
