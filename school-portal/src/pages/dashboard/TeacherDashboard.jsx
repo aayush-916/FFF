@@ -638,7 +638,7 @@ const TeacherDashboard = () => {
                                 marginLeft: 8,
                               }}
                             >
-                              <div style={{ textAlign: "right" }}>
+                              {/* <div style={{ textAlign: "right" }}>
                                 <span
                                   style={{
                                     fontSize: 16,
@@ -651,7 +651,8 @@ const TeacherDashboard = () => {
                                 <div style={{ width: 56, marginTop: 5 }}>
                                   <Bar pct={sPct} color={sp.color} h={3} />
                                 </div>
-                              </div>
+                              </div> */}
+
                               {isSecOpen ? (
                                 <ChevronDown
                                   size={16}
