@@ -541,7 +541,7 @@ const SchoolDashboard = () => {
       {activeTab === 'classes' && (
         <div className="space-y-3">
           {classesData.length === 0
-            ? <Empty icon={AlertCircle} title="Awaiting class data" sub='Tell your backend developer to send the "classes" array.' />
+            ? <Empty icon={AlertCircle} title="Awaiting class data" sub='"classes" array.' />
             : classesData.map((cls) => {
               const open = expandedClass === cls.class_number;
               const sections = cls.sections || [];
@@ -562,7 +562,7 @@ const SchoolDashboard = () => {
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-lg font-extrabold text-slate-900">Class {cls.class_number}</h2>
                         <Chip label={`${sections.length} section${sections.length !== 1 ? 's' : ''}`} variant="slate" />
-                        {overallPct === 100 && <Chip label="Complete ✓" variant="green" />}
+                        {/* {overallPct === 100 && <Chip label="Complete ✓" variant="green" />} */}
                       </div>
                       <p className="text-xs text-slate-400 font-medium mt-0.5">{overallPct}% average progress</p>
                     </div>
