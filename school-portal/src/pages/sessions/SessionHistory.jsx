@@ -87,8 +87,7 @@ const SessionHistory = () => {
   const [assignedClasses, setAssignedClasses] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
-  const [activeTab, setActiveTab]       = useState('overview');
-  const [expandedClass, setExpandedClass] = useState(null);   // classes tab
+  const [activeTab, setActiveTab]       = useState('overview');   // classes tab
   const [expandedOvClass, setExpandedOvClass] = useState(null); // overview tab
 
   useEffect(() => {
@@ -199,7 +198,7 @@ const SessionHistory = () => {
 
   const TABS = [
     { id: 'overview', label: 'Overview', icon: <TrendingUp size={15} /> },
-    { id: 'classes',  label: 'By Class',  icon: <Layers size={15} /> },
+    // { id: 'classes',  label: 'By Class',  icon: <Layers size={15} /> },
     { id: 'history',  label: 'History',   icon: <History size={15} /> },
   ];
 
@@ -514,172 +513,6 @@ const SessionHistory = () => {
                           </div>
                         );
                       })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {/* ══════════════════════════════════════════
-            BY CLASS TAB
-        ══════════════════════════════════════════ */}
-        {activeTab === 'classes' && (
-          <>
-            {classNumbers.map(cn => {
-              const secs   = groupedClasses[cn] || [];
-              const done   = secs.reduce((a, s) => a + (s.lessons_completed || 0), 0);
-              const total  = secs.reduce((a, s) => a + (s.lessons_total     || 0), 0);
-              const pct    = total ? Math.round((done / total) * 100) : 0;
-              const isOpen = expandedClass === cn;
-              const col    = pct >= 75 ? T.green : pct >= 40 ? T.orange : '#e11d48';
-
-              return (
-                <div key={cn} style={{ background: T.card, borderRadius: 22,
-                  border: `1.5px solid ${isOpen ? T.greenLt : T.border}`, overflow: 'hidden',
-                  boxShadow: isOpen ? '0 6px 24px rgba(22,163,74,0.09)' : '0 1px 4px rgba(0,0,0,0.04)',
-                  transition: 'all 0.2s ease' }}>
-
-                  <button onClick={() => setExpandedClass(p => p === cn ? null : cn)} style={{
-                    width: '100%', display: 'flex', alignItems: 'center',
-                    justifyContent: 'space-between', padding: '16px 18px',
-                    background: isOpen ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : 'transparent',
-                    border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.2s' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <div style={{ width: 52, height: 52, borderRadius: 18, flexShrink: 0,
-                        background: isOpen ? T.green : '#f1f0ee',
-                        display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-                        <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.08em',
-                          color: isOpen ? T.greenLt : T.hint, lineHeight: 1 }}>CLASS</span>
-                        <span style={{ fontSize: 22, fontWeight: 900,
-                          color: isOpen ? '#fff' : T.pri, lineHeight: 1.1 }}>{cn}</span>
-                      </div>
-                      <div>
-                        <p style={{ fontSize: 17, fontWeight: 800, color: T.pri }}>Class {cn}</p>
-                        <p style={{ fontSize: 12, color: T.sec, marginTop: 3 }}>
-                          {secs.length} section{secs.length !== 1 ? 's' : ''} · {done}/{total} lessons
-                        </p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {/* <Ring pct={pct} color={col} size={46} stroke={5} /> */}
-                      {isOpen
-                        ? <ChevronDown  size={18} style={{ color: T.green }} />
-                        : <ChevronRight size={18} style={{ color: T.hint }} />}
-                    </div>
-                  </button>
-
-                  {isOpen && (
-                    <div style={{ padding: '0 14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {/* Section tiles */}
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        {secs.map((sec, si) => {
-                          const sp   = secPal(sec.section);
-                          const sPct = sec.progress_percentage ?? 0;
-                          return (
-                            <div key={si} style={{ flex: 1, background: sp.bg,
-                              borderRadius: 16, padding: '14px 10px', textAlign: 'center' }}>
-                              <p style={{ fontSize: 26, fontWeight: 900, color: sp.color }}>{sec.section}</p>
-                              <p style={{ fontSize: 18, fontWeight: 800, color: sp.color, marginTop: 4 }}>{sPct}%</p>
-                              <p style={{ fontSize: 10, color: sp.color, opacity: 0.75, marginTop: 3 }}>
-                                {sec.lessons_completed || 0}/{sec.lessons_total || 0} lessons
-                              </p>
-                              <div style={{ marginTop: 8 }}><Bar pct={sPct} color={sp.color} h={3} /></div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Habit heatmap */}
-                      {secs.some(s => (s.habits || []).length > 0) && (
-                        <div style={{ background: T.bg, borderRadius: 14, padding: '12px 14px' }}>
-                          <p style={{ fontSize: 11, fontWeight: 700, color: T.hint,
-                            textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-                            Habit progress per section
-                          </p>
-                          {(() => {
-                            const maxH = Math.max(...secs.map(s => (s.habits || []).length));
-                            return (
-                              <>
-                                <div style={{ display: 'flex', gap: 4, marginBottom: 6, paddingLeft: 28 }}>
-                                  {Array.from({ length: maxH }, (_, i) => (
-                                    <div key={i} style={{ width: 34, textAlign: 'center',
-                                      fontSize: 9, fontWeight: 700, color: T.hint, flexShrink: 0 }}>
-                                      H{i + 1}
-                                    </div>
-                                  ))}
-                                </div>
-                                {secs.map((sec, si) => {
-                                  const habits = sec.habits || [];
-                                  if (!habits.length) return null;
-                                  return (
-                                    <div key={si} style={{ display: 'flex', alignItems: 'center',
-                                      gap: 8, marginBottom: si < secs.length - 1 ? 6 : 0 }}>
-                                      <span style={{ fontSize: 12, fontWeight: 700,
-                                        color: secPal(sec.section).color, minWidth: 20 }}>
-                                        {sec.section}
-                                      </span>
-                                      <div style={{ display: 'flex', gap: 4 }}>
-                                        {habits.map((h, hi) => {
-                                          const hp = (h.lessons_total || 0)
-                                            ? Math.round(((h.lessons_completed || 0) / h.lessons_total) * 100)
-                                            : 0;
-                                          return <HeatCell key={hi} pct={hp} />;
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </>
-                            );
-                          })()}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5,
-                            marginTop: 12, justifyContent: 'flex-end' }}>
-                            <span style={{ fontSize: 10, color: T.hint }}>0%</span>
-                            {['#ffedd5', '#fef3c7', T.greenBg, T.greenLt].map((bg, i) => (
-                              <div key={i} style={{ width: 14, height: 14, borderRadius: 4, background: bg }} />
-                            ))}
-                            <span style={{ fontSize: 10, color: T.hint }}>100%</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Section detail rows */}
-                      <div style={{ background: T.card, borderRadius: 14,
-                        border: `1px solid ${T.border}`, overflow: 'hidden' }}>
-                        {secs.map((sec, si) => {
-                          const sp   = secPal(sec.section);
-                          const sPct = sec.progress_percentage ?? 0;
-                          return (
-                            <div key={si} style={{ display: 'flex', alignItems: 'center', gap: 12,
-                              padding: '12px 16px',
-                              borderBottom: si < secs.length - 1 ? `1px solid ${T.border}` : 'none' }}>
-                              <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-                                background: sp.bg, display: 'flex', alignItems: 'center',
-                                justifyContent: 'center', fontSize: 18, fontWeight: 800, color: sp.color }}>
-                                {sec.section}
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                                  <p style={{ fontSize: 13, fontWeight: 700, color: T.pri }}>
-                                    Section {sec.section}
-                                  </p>
-                                  <span style={{ fontSize: 12, fontWeight: 800, color: sp.color }}>
-                                    {sPct}%
-                                  </span>
-                                </div>
-                                <Bar pct={sPct} color={sp.color} h={4} />
-                                <p style={{ fontSize: 10, color: T.hint, marginTop: 4 }}>
-                                  {sec.habits_completed || 0}/{sec.habits_total || 0} habits ·{' '}
-                                  {sec.lessons_completed || 0}/{sec.lessons_total || 0} lessons
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
                   )}
                 </div>
