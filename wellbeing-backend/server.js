@@ -38,7 +38,8 @@ app.use(cors({
 
         const allowedOrigins = [
             'https://school.aanyasolutions.com',
-            'https://fff.aanyasolutions.com'
+            'https://fff.aanyasolutions.com',
+            'https://2aa4-49-36-144-43.ngrok-free.app'
         ];
 
         if (allowedOrigins.includes(origin)) {
