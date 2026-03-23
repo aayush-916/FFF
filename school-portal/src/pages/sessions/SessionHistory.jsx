@@ -261,7 +261,7 @@ const SessionHistory = () => {
               boxShadow: '0 4px 24px rgba(22,163,74,0.08)' }}>
 
               {/* Top gradient band */}
-              <div style={{ background: 'linear-gradient(135deg,#f0fdf4 0%,#dcfce7 60%,#bbf7d0 100%)',
+              {/* <div style={{ background: 'linear-gradient(135deg,#f0fdf4 0%,#dcfce7 60%,#bbf7d0 100%)',
                 padding: '20px 20px 18px', borderBottom: `1px solid ${T.greenLt}`,
                 display: 'flex', alignItems: 'center', gap: 20 }}>
                 <Ring pct={overallStats.pct} color={T.green} size={96} stroke={10} />
@@ -286,14 +286,14 @@ const SessionHistory = () => {
                     <Bar pct={overallStats.pct} color={T.green} h={6} />
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               {/* Stats row */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
                 {[
                   { label: 'Classes',   value: overallStats.classes,        color: T.blue   },
                   { label: 'Sections',  value: overallStats.sections,       color: T.purple },
-                  { label: 'Lessons',   value: overallStats.lessons.done,   color: T.orange },
+                  // { label: 'Lessons',   value: overallStats.lessons.done,   color: T.orange },
                 ].map((s, i) => (
                   <div key={i} style={{ padding: '14px 0', textAlign: 'center',
                     borderRight: i < 2 ? `1px solid ${T.border}` : 'none' }}>
@@ -329,7 +329,7 @@ const SessionHistory = () => {
               const classTotal = assignedSecs.reduce((a, { section }) =>
                 a + (sectionMap[`${cn}-${section}`]?.habits_total      || 0), 0);
               const classPct   = classTotal ? Math.round((classDone / classTotal) * 100) : 0;
-              const col        = classPct >= 75 ? T.green : classPct >= 40 ? T.orange : T.hint;
+              //const col = classPct >= 75 ? T.green : classPct >= 40 ? T.orange : T.hint;
 
               return (
                 <div key={cn} style={{ background: T.card, borderRadius: 20,
@@ -377,12 +377,12 @@ const SessionHistory = () => {
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {/* <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                       <Ring pct={classPct} color={col} size={46} stroke={5} />
                       {isOpen
                         ? <ChevronDown  size={18} style={{ color: T.green }} />
                         : <ChevronRight size={18} style={{ color: T.hint }} />}
-                    </div>
+                    </div> */}
                   </button>
 
                   {/* Expanded: habits & lessons per section */}
