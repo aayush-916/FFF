@@ -562,9 +562,9 @@ const SchoolDashboard = () => {
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-lg font-extrabold text-slate-900">Class {cls.class_number}</h2>
                         <Chip label={`${sections.length} section${sections.length !== 1 ? 's' : ''}`} variant="slate" />
-                        {/* {overallPct === 100 && <Chip label="Complete ✓" variant="green" />} */}
+                        {overallPct === 100 && <Chip label="Complete ✓" variant="green" />}
                       </div>
-                      <p className="text-xs text-slate-400 font-medium mt-0.5">{overallPct}% average progress</p>
+                      {/* <p className="text-xs text-slate-400 font-medium mt-0.5">{overallPct}% average progress</p> */}
                     </div>
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors
                       ${open ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
