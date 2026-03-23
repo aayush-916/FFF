@@ -289,7 +289,7 @@ const SessionHistory = () => {
               </div> */}
 
               {/* Stats row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
                 {[
                   { label: 'Classes',   value: overallStats.classes,        color: T.blue   },
                   { label: 'Sections',  value: overallStats.sections,       color: T.purple },
@@ -377,12 +377,12 @@ const SessionHistory = () => {
                       </div>
                     </div>
 
-                    {/* <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      <Ring pct={classPct} color={col} size={46} stroke={5} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      {/* <Ring pct={classPct} color={col} size={46} stroke={5} /> */}
                       {isOpen
                         ? <ChevronDown  size={18} style={{ color: T.green }} />
                         : <ChevronRight size={18} style={{ color: T.hint }} />}
-                    </div> */}
+                    </div>
                   </button>
 
                   {/* Expanded: habits & lessons per section */}
