@@ -415,9 +415,9 @@ const SessionHistory = () => {
                                   <p style={{ fontSize: 14, fontWeight: 700, color: T.pri }}>
                                     Section {section}
                                   </p>
-                                  <span style={{ fontSize: 13, fontWeight: 800, color: sp.color }}>
+                                  {/* <span style={{ fontSize: 13, fontWeight: 800, color: sp.color }}>
                                     {sPct}%
-                                  </span>
+                                  </span> */}
                                 </div>
                                 <Bar pct={sPct} color={sp.color} h={4} />
                                 {/* Quick stats */}
@@ -428,7 +428,7 @@ const SessionHistory = () => {
                                   </span>
                                   <span style={{ fontSize: 11, color: T.sec }}>
                                     <span style={{ fontWeight: 700, color: T.orange }}>{lDone}</span>
-                                    /{lTotal} lessons
+                                     lessons Completed
                                   </span>
                                 </div>
                               </div>
