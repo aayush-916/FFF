@@ -419,15 +419,15 @@ const TeacherDashboard = () => {
         {allClassNumbers.map((classNum) => {
           const isOpen = expandedClass === classNum;
           const sections = groupedClasses[classNum] || [];
-          const done = sections.reduce(
-            (a, c) => a + (c.lessons_completed || 0),
-            0,
-          );
-          const total = sections.reduce(
-            (a, c) => a + (c.lessons_total || 0),
-            0,
-          );
-          const pct = total ? Math.round((done / total) * 100) : 0;
+          // const done = sections.reduce(
+          //   (a, c) => a + (c.lessons_completed || 0),
+          //   0,
+          // );
+          // const total = sections.reduce(
+          //   (a, c) => a + (c.lessons_total || 0),
+          //   0,
+          // );
+          // const pct = total ? Math.round((done / total) * 100) : 0;
 
           return (
             <div
@@ -505,8 +505,8 @@ const TeacherDashboard = () => {
                     </p>
                     <p style={{ fontSize: 12, color: T.sec, marginTop: 3 }}>
                       {sections.length} section
-                      {sections.length !== 1 ? "s" : ""} · {done}/{total}{" "}
-                      lessons
+                      {sections.length !== 1 ? "s" : ""}
+                      
                     </p>
                   </div>
                 </div>
