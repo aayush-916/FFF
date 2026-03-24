@@ -362,13 +362,13 @@ const SessionHistory = () => {
                           {assignedSecs.map(({ section }, si) => {
                             const sp  = secPal(section);
                             const sec = sectionMap[`${cn}-${section}`];
-                            const sp2 = sec ? (sec.progress_percentage ?? 0) : 0;
+                            // const sp2 = sec ? (sec.progress_percentage ?? 0) : 0;
                             return (
                               <span key={si} style={{ fontSize: 10, fontWeight: 700,
                                 padding: '2px 8px', borderRadius: 99,
                                 background: sp.bg, color: sp.color,
                                 border: `1px solid ${sp.border}` }}>
-                                {section} · {sp2}%
+                                {section}
                               </span>
                             );
                           })}
@@ -394,8 +394,6 @@ const SessionHistory = () => {
                         const habits  = sec?.habits || [];
                         const hDone   = sec?.habits_completed  || 0;
                         const hTotal  = sec?.habits_total      || 0;
-                        const lDone   = sec?.lessons_completed || 0;
-                        const lTotal  = sec?.lessons_total     || 0;
 
                         return (
                           <div key={si} style={{
@@ -426,10 +424,10 @@ const SessionHistory = () => {
                                     <span style={{ fontWeight: 700, color: T.green }}>{hDone}</span>
                                     /{hTotal} habits
                                   </span>
-                                  <span style={{ fontSize: 11, color: T.sec }}>
+                                  {/* <span style={{ fontSize: 11, color: T.sec }}>
                                     <span style={{ fontWeight: 700, color: T.orange }}>{lDone}</span>
-                                     lessons Completed
-                                  </span>
+                                     lesson Completed
+                                  </span> */}
                                 </div>
                               </div>
                             </div>
