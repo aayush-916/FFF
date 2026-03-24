@@ -601,7 +601,7 @@ const SchoolDashboard = () => {
                                   </div>
                                   <div className="flex items-center gap-2 mt-1.5">
                                     <Bar pct={pct} color={pct === 100 ? 'bg-emerald-500' : 'bg-indigo-500'} />
-                                    <span className="text-[11px] font-bold text-slate-500 shrink-0">{pct}%</span>
+                                    {/* <span className="text-[11px] font-bold text-slate-500 shrink-0">{pct}%</span> */}
                                   </div>
                                 </div>
                                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0
