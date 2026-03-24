@@ -624,8 +624,8 @@ const TeacherDashboard = () => {
                                 >
                                   {cls.habits_completed || 0}/
                                   {cls.habits_total || 0} habits ·{" "}
-                                  {cls.lessons_completed || 0}/
-                                  {cls.lessons_total || 0} lessons
+                                  {/* {cls.lessons_completed || 0}/
+                                  {cls.lessons_total || 0} lessons */}
                                 </p>
                               </div>
                             </div>
