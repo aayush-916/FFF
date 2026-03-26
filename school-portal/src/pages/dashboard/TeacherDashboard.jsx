@@ -164,15 +164,21 @@ const TeacherDashboard = () => {
 
   /* ── Fetch assigned classes ── */
   const fetchAssignedClasses = async () => {
-    try {
-      const res = await api.get("/teacher/classes");
-      setAssignedClasses(res.data || []);
-    } catch {
-      setAssignedClasses([]);
-    } finally {
-      setAssignedLoading(false);
-    }
-  };
+  try {
+    const res = await api.get("/teacher/classes");
+    // Handle both `res.data = [...]` and `res.data = { data: [...] }`
+    const classes = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.data)
+      ? res.data.data
+      : [];
+    setAssignedClasses(classes);
+  } catch {
+    setAssignedClasses([]);
+  } finally {
+    setAssignedLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchDashboardData();
@@ -195,13 +201,15 @@ const TeacherDashboard = () => {
   };
 
   /* ── Build a Set of assigned class-section keys for fast lookup ── */
-  const assignedSet = useMemo(
-    () =>
-      new Set(
-        assignedClasses.map((c) => `${c.class_number}-${c.section}`)
-      ),
-    [assignedClasses]
-  );
+ const assignedSet = useMemo(
+  () =>
+    new Set(
+      (Array.isArray(assignedClasses) ? assignedClasses : []).map(
+        (c) => `${c.class_number}-${c.section}`
+      )
+    ),
+  [assignedClasses]
+);
 
   /* ── ALL classes grouped (original behaviour) ── */
   const groupedClasses = useMemo(
