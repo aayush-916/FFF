@@ -123,9 +123,20 @@ const TeacherDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+
+  /* ── Main tab: "assigned" | "all" ── */
+  const [activeMainTab, setActiveMainTab] = useState("assigned");
+
+  /* ── Assigned classes from /teacher/classes ── */
+  const [assignedClasses, setAssignedClasses] = useState([]);
+  const [assignedLoading, setAssignedLoading] = useState(true);
+
+  /* ── Accordion state (shared, reset on tab switch) ── */
   const [expandedClass, setExpandedClass] = useState(null);
   const [expandedSection, setExpandedSection] = useState(null);
   const [expandedHabit, setExpandedHabit] = useState(null);
+
+  /* ── Modals ── */
   const [teachingLesson, setTeachingLesson] = useState(null);
   const [feedbackLesson, setFeedbackLesson] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,10 +150,10 @@ const TeacherDashboard = () => {
     return `https://api.aanyasolutions.com/${fp.replace(/^\//, "")}`;
   };
 
+  /* ── Fetch full dashboard data ── */
   const fetchDashboardData = async () => {
     try {
       const res = await api.get("/dashboard/teacher");
-      // console.log(res.data);
       setData(res.data.data || res.data);
     } catch {
       setError("Failed to load dashboard data.");
@@ -151,9 +162,23 @@ const TeacherDashboard = () => {
     }
   };
 
+  /* ── Fetch assigned classes ── */
+  const fetchAssignedClasses = async () => {
+    try {
+      const res = await api.get("/teacher/classes");
+      setAssignedClasses(res.data || []);
+    } catch {
+      setAssignedClasses([]);
+    } finally {
+      setAssignedLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
+    fetchAssignedClasses();
   }, []);
+
   useEffect(() => {
     document.body.style.overflow = isFullscreen ? "hidden" : "";
     return () => {
@@ -161,13 +186,31 @@ const TeacherDashboard = () => {
     };
   }, [isFullscreen]);
 
+  /* ── Reset accordion when switching main tabs ── */
+  const switchTab = (tab) => {
+    setActiveMainTab(tab);
+    setExpandedClass(null);
+    setExpandedSection(null);
+    setExpandedHabit(null);
+  };
+
+  /* ── Build a Set of assigned class-section keys for fast lookup ── */
+  const assignedSet = useMemo(
+    () =>
+      new Set(
+        assignedClasses.map((c) => `${c.class_number}-${c.section}`)
+      ),
+    [assignedClasses]
+  );
+
+  /* ── ALL classes grouped (original behaviour) ── */
   const groupedClasses = useMemo(
     () =>
       (data?.classes || []).reduce((acc, cls) => {
         (acc[cls.class_number] = acc[cls.class_number] || []).push(cls);
         return acc;
       }, {}),
-    [data],
+    [data]
   );
 
   const allClassNumbers = useMemo(
@@ -175,9 +218,38 @@ const TeacherDashboard = () => {
       Object.keys(groupedClasses)
         .map(Number)
         .sort((a, b) => a - b),
-    [groupedClasses],
+    [groupedClasses]
   );
 
+  /* ── ASSIGNED classes grouped (filtered from full data) ── */
+  const assignedGrouped = useMemo(
+    () =>
+      (data?.classes || [])
+        .filter((cls) =>
+          assignedSet.has(`${cls.class_number}-${cls.section}`)
+        )
+        .reduce((acc, cls) => {
+          (acc[cls.class_number] = acc[cls.class_number] || []).push(cls);
+          return acc;
+        }, {}),
+    [data, assignedSet]
+  );
+
+  const assignedClassNumbers = useMemo(
+    () =>
+      Object.keys(assignedGrouped)
+        .map(Number)
+        .sort((a, b) => a - b),
+    [assignedGrouped]
+  );
+
+  /* ── Which grouped data is currently active ── */
+  const activeGrouped =
+    activeMainTab === "assigned" ? assignedGrouped : groupedClasses;
+  const activeClassNumbers =
+    activeMainTab === "assigned" ? assignedClassNumbers : allClassNumbers;
+
+  /* ── Accordion handlers ── */
   const toggleClass = (n) => {
     setExpandedClass((p) => (p === n ? null : n));
     setExpandedSection(null);
@@ -189,6 +261,7 @@ const TeacherDashboard = () => {
   };
   const toggleHabit = (k) => setExpandedHabit((p) => (p === k ? null : k));
 
+  /* ── Modal helpers ── */
   const openTeachingModal = (lesson, habit, cls) => {
     setIsFullscreen(false);
     setTeachingLesson({
@@ -236,7 +309,7 @@ const TeacherDashboard = () => {
     setIsSubmitting(true);
     try {
       const res = await api.get(
-        `/mcq?lesson_id=${cur.lesson.parent_lesson_id}`,
+        `/mcq?lesson_id=${cur.lesson.parent_lesson_id}`
       );
       setQuestions(res.data.data || []);
       setAnswers({});
@@ -337,57 +410,105 @@ const TeacherDashboard = () => {
       </div>
     );
 
-  /* ── Render ── */
+  /* ══════════════════════════════════════════════════════════════════
+     RENDER
+  ══════════════════════════════════════════════════════════════════ */
   return (
     <div style={{ background: T.bg, minHeight: "100vh" }}>
+
       {/* ── Sticky page header ── */}
       <div
         style={{
           background: "#fff",
           borderBottom: `1px solid ${T.border}`,
-          padding: "18px 18px 14px",
+          padding: "18px 18px 0",
           position: "sticky",
           top: 0,
           zIndex: 10,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            maxWidth: 680,
-            margin: "0 auto",
-          }}
-        >
-          <div
-            style={{
-              width: 46,
-              height: 46,
-              borderRadius: 15,
-              flexShrink: 0,
-              background: "linear-gradient(135deg,#bbf7d0,#dcfce7)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <GraduationCap size={22} style={{ color: T.green }} />
-          </div>
-          <div>
-            <h1
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+
+          {/* Title row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, paddingBottom: 14 }}>
+            <div
               style={{
-                fontSize: 18,
-                fontWeight: 800,
-                color: T.pri,
-                lineHeight: 1.2,
+                width: 46,
+                height: 46,
+                borderRadius: 15,
+                flexShrink: 0,
+                background: "linear-gradient(135deg,#bbf7d0,#dcfce7)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              Habit Tracker
-            </h1>
-            <p style={{ fontSize: 12, color: T.sec, marginTop: 2 }}>
-              Track progress & teach across all classes
-            </p>
+              <GraduationCap size={22} style={{ color: T.green }} />
+            </div>
+            <div>
+              <h1
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: T.pri,
+                  lineHeight: 1.2,
+                }}
+              >
+                Habit Tracker
+              </h1>
+              <p style={{ fontSize: 12, color: T.sec, marginTop: 2 }}>
+                Track progress & teach across all classes
+              </p>
+            </div>
+          </div>
+
+          {/* ── Main Tabs ── */}
+          <div style={{ display: "flex", gap: 4 }}>
+            {[
+              { key: "assigned", label: "Assigned Classes" },
+              { key: "all", label: "All Classes" },
+            ].map((tab) => {
+              const isActive = activeMainTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => switchTab(tab.key)}
+                  style={{
+                    flex: 1,
+                    padding: "10px 14px",
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: isActive ? 800 : 600,
+                    color: isActive ? T.green : T.sec,
+                    borderBottom: isActive
+                      ? `2.5px solid ${T.green}`
+                      : "2.5px solid transparent",
+                    transition: "all 0.18s ease",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {tab.label}
+                  {tab.key === "assigned" && !assignedLoading && (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 10,
+                        fontWeight: 800,
+                        padding: "2px 7px",
+                        borderRadius: 99,
+                        background: isActive ? T.greenBg : "#f1f0ee",
+                        color: isActive ? T.green : T.hint,
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      {assignedClasses.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -403,7 +524,21 @@ const TeacherDashboard = () => {
           gap: 12,
         }}
       >
-        {allClassNumbers.length === 0 && (
+        {/* Loading state for assigned tab while fetching */}
+        {activeMainTab === "assigned" && assignedLoading ? (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              padding: "60px 20px",
+            }}
+          >
+            <Loader2
+              size={24}
+              style={{ color: T.green, animation: "spin 1s linear infinite" }}
+            />
+          </div>
+        ) : activeClassNumbers.length === 0 ? (
           <div
             style={{
               textAlign: "center",
@@ -412,596 +547,576 @@ const TeacherDashboard = () => {
               fontSize: 14,
             }}
           >
-            No class data available
+            {activeMainTab === "assigned"
+              ? "No classes have been assigned to you yet"
+              : "No class data available"}
           </div>
-        )}
+        ) : (
+          activeClassNumbers.map((classNum) => {
+            const isOpen = expandedClass === classNum;
+            const sections = activeGrouped[classNum] || [];
 
-        {allClassNumbers.map((classNum) => {
-          const isOpen = expandedClass === classNum;
-          const sections = groupedClasses[classNum] || [];
-          // const done = sections.reduce(
-          //   (a, c) => a + (c.lessons_completed || 0),
-          //   0,
-          // );
-          // const total = sections.reduce(
-          //   (a, c) => a + (c.lessons_total || 0),
-          //   0,
-          // );
-          // const pct = total ? Math.round((done / total) * 100) : 0;
-
-          return (
-            <div
-              key={classNum}
-              style={{
-                background: T.card,
-                borderRadius: 22,
-                border: `1.5px solid ${isOpen ? T.greenLt : T.border}`,
-                overflow: "hidden",
-                boxShadow: isOpen
-                  ? "0 6px 28px rgba(22,163,74,0.10)"
-                  : "0 1px 6px rgba(0,0,0,0.05)",
-                transition: "all 0.22s ease",
-              }}
-            >
-              {/* Class header */}
-              <button
-                onClick={() => toggleClass(classNum)}
+            return (
+              <div
+                key={classNum}
                 style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "16px 18px",
-                  background: isOpen
-                    ? "linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%)"
-                    : "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "background 0.22s",
+                  background: T.card,
+                  borderRadius: 22,
+                  border: `1.5px solid ${isOpen ? T.greenLt : T.border}`,
+                  overflow: "hidden",
+                  boxShadow: isOpen
+                    ? "0 6px 28px rgba(22,163,74,0.10)"
+                    : "0 1px 6px rgba(0,0,0,0.05)",
+                  transition: "all 0.22s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  {/* Class badge */}
-                  <div
-                    style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 18,
-                      flexShrink: 0,
-                      background: isOpen ? T.green : "#f1f0ee",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "all 0.22s",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 800,
-                        letterSpacing: "0.08em",
-                        color: isOpen ? T.greenLt : T.hint,
-                        lineHeight: 1,
-                      }}
-                    >
-                      CLASS
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 22,
-                        fontWeight: 900,
-                        color: isOpen ? "#fff" : T.pri,
-                        lineHeight: 1.1,
-                      }}
-                    >
-                      {classNum}
-                    </span>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 17, fontWeight: 800, color: T.pri }}>
-                      Class {classNum}
-                    </p>
-                    <p style={{ fontSize: 12, color: T.sec, marginTop: 3 }}>
-                      {sections.length} section
-                      {sections.length !== 1 ? "s" : ""}
-                      
-                    </p>
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {/* <Ring pct={pct} color={T.green} size={46} stroke={4} /> */}
-                  {isOpen ? (
-                    <ChevronDown size={18} style={{ color: T.green }} />
-                  ) : (
-                    <ChevronRight size={18} style={{ color: T.hint }} />
-                  )}
-                </div>
-              </button>
-
-              {/* ── Sections ── */}
-              {isOpen && (
-                <div
+                {/* Class header */}
+                <button
+                  onClick={() => toggleClass(classNum)}
                   style={{
-                    padding: "0 12px 14px",
+                    width: "100%",
                     display: "flex",
-                    flexDirection: "column",
-                    gap: 10,
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "16px 18px",
+                    background: isOpen
+                      ? "linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%)"
+                      : "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "background 0.22s",
                   }}
                 >
-                  {sections.length === 0 ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    {/* Class badge */}
                     <div
                       style={{
-                        textAlign: "center",
-                        padding: 24,
-                        color: T.hint,
-                        border: `2px dashed ${T.border}`,
-                        borderRadius: 16,
-                        margin: "4px 0 0",
+                        width: 52,
+                        height: 52,
+                        borderRadius: 18,
+                        flexShrink: 0,
+                        background: isOpen ? T.green : "#f1f0ee",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "all 0.22s",
                       }}
                     >
-                      No sections assigned
+                      <span
+                        style={{
+                          fontSize: 8,
+                          fontWeight: 800,
+                          letterSpacing: "0.08em",
+                          color: isOpen ? T.greenLt : T.hint,
+                          lineHeight: 1,
+                        }}
+                      >
+                        CLASS
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 22,
+                          fontWeight: 900,
+                          color: isOpen ? "#fff" : T.pri,
+                          lineHeight: 1.1,
+                        }}
+                      >
+                        {classNum}
+                      </span>
                     </div>
-                  ) : (
-                    sections.map((cls, idx) => {
-                      const sk = `${classNum}-${cls.section}`;
-                      const isSecOpen = expandedSection === sk;
-                      const sPct = cls.progress_percentage ?? 0;
-                      const sp = secPal(cls.section);
+                    <div>
+                      <p style={{ fontSize: 17, fontWeight: 800, color: T.pri }}>
+                        Class {classNum}
+                      </p>
+                      <p style={{ fontSize: 12, color: T.sec, marginTop: 3 }}>
+                        {sections.length} section
+                        {sections.length !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {isOpen ? (
+                      <ChevronDown size={18} style={{ color: T.green }} />
+                    ) : (
+                      <ChevronRight size={18} style={{ color: T.hint }} />
+                    )}
+                  </div>
+                </button>
 
-                      return (
-                        <div
-                          key={idx}
-                          style={{
-                            background: isSecOpen ? "#fafaf9" : T.card,
-                            borderRadius: 18,
-                            border: `1px solid ${isSecOpen ? "#e7e5e4" : T.border}`,
-                            overflow: "hidden",
-                          }}
-                        >
-                          {/* Section header */}
-                          <button
-                            onClick={() => toggleSection(sk)}
+                {/* ── Sections ── */}
+                {isOpen && (
+                  <div
+                    style={{
+                      padding: "0 12px 14px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    {sections.length === 0 ? (
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: 24,
+                          color: T.hint,
+                          border: `2px dashed ${T.border}`,
+                          borderRadius: 16,
+                          margin: "4px 0 0",
+                        }}
+                      >
+                        No sections assigned
+                      </div>
+                    ) : (
+                      sections.map((cls, idx) => {
+                        const sk = `${classNum}-${cls.section}`;
+                        const isSecOpen = expandedSection === sk;
+                        const sp = secPal(cls.section);
+
+                        return (
+                          <div
+                            key={idx}
                             style={{
-                              width: "100%",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "14px 16px",
-                              background: "transparent",
-                              border: "none",
-                              cursor: "pointer",
-                              textAlign: "left",
+                              background: isSecOpen ? "#fafaf9" : T.card,
+                              borderRadius: 18,
+                              border: `1px solid ${isSecOpen ? "#e7e5e4" : T.border}`,
+                              overflow: "hidden",
                             }}
                           >
-                            <div
+                            {/* Section header */}
+                            <button
+                              onClick={() => toggleSection(sk)}
                               style={{
+                                width: "100%",
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 12,
+                                justifyContent: "space-between",
+                                padding: "14px 16px",
+                                background: "transparent",
+                                border: "none",
+                                cursor: "pointer",
+                                textAlign: "left",
                               }}
                             >
-                              {/* Section letter avatar */}
                               <div
                                 style={{
-                                  width: 46,
-                                  height: 46,
-                                  borderRadius: 15,
-                                  flexShrink: 0,
-                                  background: sp.bg,
                                   display: "flex",
                                   alignItems: "center",
-                                  justifyContent: "center",
+                                  gap: 12,
                                 }}
                               >
-                                <span
+                                {/* Section letter avatar */}
+                                <div
                                   style={{
-                                    fontSize: 22,
-                                    fontWeight: 800,
-                                    color: sp.color,
+                                    width: 46,
+                                    height: 46,
+                                    borderRadius: 15,
+                                    flexShrink: 0,
+                                    background: sp.bg,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
                                   }}
                                 >
-                                  {cls.section}
-                                </span>
-                              </div>
-                              <div>
-                                <p
-                                  style={{
-                                    fontSize: 15,
-                                    fontWeight: 700,
-                                    color: T.pri,
-                                  }}
-                                >
-                                  Section {cls.section}
-                                </p>
-                                <p
-                                  style={{
-                                    fontSize: 11,
-                                    color: T.sec,
-                                    marginTop: 2,
-                                  }}
-                                >
-                                  {cls.habits_completed || 0}/
-                                  {cls.habits_total || 0} habits ·{" "}
-                                  {/* {cls.lessons_completed || 0}/
-                                  {cls.lessons_total || 0} lessons */}
-                                </p>
-                              </div>
-                            </div>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 10,
-                                flexShrink: 0,
-                                marginLeft: 8,
-                              }}
-                            >
-                              {/* <div style={{ textAlign: "right" }}>
-                                <span
-                                  style={{
-                                    fontSize: 16,
-                                    fontWeight: 800,
-                                    color: sp.color,
-                                  }}
-                                >
-                                  {sPct}%
-                                </span>
-                                <div style={{ width: 56, marginTop: 5 }}>
-                                  <Bar pct={sPct} color={sp.color} h={3} />
+                                  <span
+                                    style={{
+                                      fontSize: 22,
+                                      fontWeight: 800,
+                                      color: sp.color,
+                                    }}
+                                  >
+                                    {cls.section}
+                                  </span>
                                 </div>
-                              </div> */}
+                                <div>
+                                  <p
+                                    style={{
+                                      fontSize: 15,
+                                      fontWeight: 700,
+                                      color: T.pri,
+                                    }}
+                                  >
+                                    Section {cls.section}
+                                  </p>
+                                  <p
+                                    style={{
+                                      fontSize: 11,
+                                      color: T.sec,
+                                      marginTop: 2,
+                                    }}
+                                  >
+                                    {cls.habits_completed || 0}/
+                                    {cls.habits_total || 0} habits ·{" "}
+                                  </p>
+                                </div>
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 10,
+                                  flexShrink: 0,
+                                  marginLeft: 8,
+                                }}
+                              >
+                                {isSecOpen ? (
+                                  <ChevronDown
+                                    size={16}
+                                    style={{ color: T.hint }}
+                                  />
+                                ) : (
+                                  <ChevronRight
+                                    size={16}
+                                    style={{ color: T.hint }}
+                                  />
+                                )}
+                              </div>
+                            </button>
 
-                              {isSecOpen ? (
-                                <ChevronDown
-                                  size={16}
-                                  style={{ color: T.hint }}
-                                />
-                              ) : (
-                                <ChevronRight
-                                  size={16}
-                                  style={{ color: T.hint }}
-                                />
-                              )}
-                            </div>
-                          </button>
+                            {/* ── Habits ── */}
+                            {isSecOpen && (
+                              <div style={{ borderTop: `1px solid ${T.border}` }}>
+                                {(cls.habits || []).length === 0 ? (
+                                  <p
+                                    style={{
+                                      textAlign: "center",
+                                      color: T.hint,
+                                      fontSize: 13,
+                                      padding: 20,
+                                    }}
+                                  >
+                                    No habits found
+                                  </p>
+                                ) : (
+                                  (cls.habits || []).map((habit, hIdx) => {
+                                    const hk = `${sk}-${habit.id}`;
+                                    const isHOpen = expandedHabit === hk;
+                                    const lTotal =
+                                      habit.lessons_total ||
+                                      habit.lessons?.length ||
+                                      0;
+                                    const lDone = habit.lessons_completed || 0;
+                                    const isComp =
+                                      lTotal > 0 && lDone === lTotal;
+                                    const hPct = lTotal
+                                      ? Math.round((lDone / lTotal) * 100)
+                                      : 0;
+                                    const hColor = isComp
+                                      ? T.green
+                                      : lDone > 0
+                                        ? T.orange
+                                        : T.hint;
 
-                          {/* ── Habits ── */}
-                          {isSecOpen && (
-                            <div style={{ borderTop: `1px solid ${T.border}` }}>
-                              {(cls.habits || []).length === 0 ? (
-                                <p
-                                  style={{
-                                    textAlign: "center",
-                                    color: T.hint,
-                                    fontSize: 13,
-                                    padding: 20,
-                                  }}
-                                >
-                                  No habits found
-                                </p>
-                              ) : (
-                                (cls.habits || []).map((habit, hIdx) => {
-                                  const hk = `${sk}-${habit.id}`;
-                                  const isHOpen = expandedHabit === hk;
-                                  const lTotal =
-                                    habit.lessons_total ||
-                                    habit.lessons?.length ||
-                                    0;
-                                  const lDone = habit.lessons_completed || 0;
-                                  const isComp = lTotal > 0 && lDone === lTotal;
-                                  const hPct = lTotal
-                                    ? Math.round((lDone / lTotal) * 100)
-                                    : 0;
-                                  const hColor = isComp
-                                    ? T.green
-                                    : lDone > 0
-                                      ? T.orange
-                                      : T.hint;
-
-                                  return (
-                                    <div
-                                      key={habit.id}
-                                      style={{
-                                        borderBottom: `1px solid ${T.border}`,
-                                      }}
-                                    >
-                                      {/* Habit row */}
-                                      <button
-                                        onClick={() => toggleHabit(hk)}
+                                    return (
+                                      <div
+                                        key={habit.id}
                                         style={{
-                                          width: "100%",
-                                          display: "flex",
-                                          alignItems: "center",
-                                          justifyContent: "space-between",
-                                          padding: "13px 16px",
-                                          background: isHOpen
-                                            ? "#f9f8f7"
-                                            : "transparent",
-                                          border: "none",
-                                          cursor: "pointer",
-                                          textAlign: "left",
-                                          transition: "background 0.15s",
+                                          borderBottom: `1px solid ${T.border}`,
                                         }}
                                       >
-                                        <div
+                                        {/* Habit row */}
+                                        <button
+                                          onClick={() => toggleHabit(hk)}
                                           style={{
+                                            width: "100%",
                                             display: "flex",
                                             alignItems: "center",
-                                            gap: 12,
-                                            flex: 1,
-                                            minWidth: 0,
+                                            justifyContent: "space-between",
+                                            padding: "13px 16px",
+                                            background: isHOpen
+                                              ? "#f9f8f7"
+                                              : "transparent",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            textAlign: "left",
+                                            transition: "background 0.15s",
                                           }}
                                         >
-                                          {/* Habit badge */}
                                           <div
                                             style={{
-                                              width: 34,
-                                              height: 34,
-                                              borderRadius: 11,
-                                              flexShrink: 0,
-                                              background: isComp
-                                                ? T.greenBg
-                                                : "#f1f0ee",
                                               display: "flex",
                                               alignItems: "center",
-                                              justifyContent: "center",
+                                              gap: 12,
+                                              flex: 1,
+                                              minWidth: 0,
                                             }}
                                           >
-                                            {isComp ? (
-                                              <CheckCircle
-                                                size={16}
-                                                style={{ color: T.green }}
-                                              />
-                                            ) : (
-                                              <span
-                                                style={{
-                                                  fontSize: 10,
-                                                  fontWeight: 800,
-                                                  color: T.sec,
-                                                }}
-                                              >
-                                                H{hIdx + 1}
-                                              </span>
-                                            )}
-                                          </div>
-                                          <div style={{ flex: 1, minWidth: 0 }}>
-                                            <p
-                                              style={{
-                                                fontSize: 14,
-                                                fontWeight: 600,
-                                                color: isComp ? T.hint : T.pri,
-                                                textDecoration: isComp
-                                                  ? "line-through"
-                                                  : "none",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                whiteSpace: "nowrap",
-                                              }}
-                                            >
-                                              {habit.name}
-                                            </p>
+                                            {/* Habit badge */}
                                             <div
                                               style={{
+                                                width: 34,
+                                                height: 34,
+                                                borderRadius: 11,
+                                                flexShrink: 0,
+                                                background: isComp
+                                                  ? T.greenBg
+                                                  : "#f1f0ee",
                                                 display: "flex",
                                                 alignItems: "center",
-                                                gap: 8,
-                                                marginTop: 5,
+                                                justifyContent: "center",
                                               }}
                                             >
-                                              <Bar
-                                                pct={hPct}
-                                                color={hColor}
-                                                h={3}
-                                              />
-                                              <span
+                                              {isComp ? (
+                                                <CheckCircle
+                                                  size={16}
+                                                  style={{ color: T.green }}
+                                                />
+                                              ) : (
+                                                <span
+                                                  style={{
+                                                    fontSize: 10,
+                                                    fontWeight: 800,
+                                                    color: T.sec,
+                                                  }}
+                                                >
+                                                  H{hIdx + 1}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <p
                                                 style={{
-                                                  fontSize: 10,
-                                                  fontWeight: 700,
-                                                  color: hColor,
-                                                  flexShrink: 0,
+                                                  fontSize: 14,
+                                                  fontWeight: 600,
+                                                  color: isComp
+                                                    ? T.hint
+                                                    : T.pri,
+                                                  textDecoration: isComp
+                                                    ? "line-through"
+                                                    : "none",
+                                                  overflow: "hidden",
+                                                  textOverflow: "ellipsis",
+                                                  whiteSpace: "nowrap",
                                                 }}
                                               >
-                                                {lDone}/{lTotal}
-                                              </span>
+                                                {habit.name}
+                                              </p>
+                                              <div
+                                                style={{
+                                                  display: "flex",
+                                                  alignItems: "center",
+                                                  gap: 8,
+                                                  marginTop: 5,
+                                                }}
+                                              >
+                                                <Bar
+                                                  pct={hPct}
+                                                  color={hColor}
+                                                  h={3}
+                                                />
+                                                <span
+                                                  style={{
+                                                    fontSize: 10,
+                                                    fontWeight: 700,
+                                                    color: hColor,
+                                                    flexShrink: 0,
+                                                  }}
+                                                >
+                                                  {lDone}/{lTotal}
+                                                </span>
+                                              </div>
                                             </div>
                                           </div>
-                                        </div>
-                                        {isHOpen ? (
-                                          <ChevronDown
-                                            size={15}
-                                            style={{
-                                              color: T.hint,
-                                              flexShrink: 0,
-                                              marginLeft: 10,
-                                            }}
-                                          />
-                                        ) : (
-                                          <ChevronRight
-                                            size={15}
-                                            style={{
-                                              color: T.hint,
-                                              flexShrink: 0,
-                                              marginLeft: 10,
-                                            }}
-                                          />
-                                        )}
-                                      </button>
-
-                                      {/* ── Lessons ── */}
-                                      {isHOpen && (
-                                        <div
-                                          style={{
-                                            padding: "6px 14px 14px",
-                                            background:
-                                              "linear-gradient(to bottom,#f9f8f7,#f4f2ee)",
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            gap: 8,
-                                          }}
-                                        >
-                                          {(habit.lessons || []).length ===
-                                          0 ? (
-                                            <p
+                                          {isHOpen ? (
+                                            <ChevronDown
+                                              size={15}
                                               style={{
-                                                fontSize: 12,
                                                 color: T.hint,
-                                                textAlign: "center",
-                                                padding: "12px 0",
+                                                flexShrink: 0,
+                                                marginLeft: 10,
                                               }}
-                                            >
-                                              No lessons yet
-                                            </p>
+                                            />
                                           ) : (
-                                            (habit.lessons || []).map(
-                                              (lesson, lIdx) => {
-                                                const isDone =
-                                                  lesson.status === "completed";
-                                                return (
-                                                  <div
-                                                    key={lesson.id ?? lIdx}
-                                                    style={{
-                                                      background: isDone
-                                                        ? T.greenBg
-                                                        : T.card,
-                                                      borderRadius: 14,
-                                                      border: `1px solid ${isDone ? T.greenLt : T.border}`,
-                                                      padding: "12px 14px",
-                                                      display: "flex",
-                                                      alignItems: "center",
-                                                      justifyContent:
-                                                        "space-between",
-                                                      gap: 10,
-                                                    }}
-                                                  >
+                                            <ChevronRight
+                                              size={15}
+                                              style={{
+                                                color: T.hint,
+                                                flexShrink: 0,
+                                                marginLeft: 10,
+                                              }}
+                                            />
+                                          )}
+                                        </button>
+
+                                        {/* ── Lessons ── */}
+                                        {isHOpen && (
+                                          <div
+                                            style={{
+                                              padding: "6px 14px 14px",
+                                              background:
+                                                "linear-gradient(to bottom,#f9f8f7,#f4f2ee)",
+                                              display: "flex",
+                                              flexDirection: "column",
+                                              gap: 8,
+                                            }}
+                                          >
+                                            {(habit.lessons || []).length ===
+                                            0 ? (
+                                              <p
+                                                style={{
+                                                  fontSize: 12,
+                                                  color: T.hint,
+                                                  textAlign: "center",
+                                                  padding: "12px 0",
+                                                }}
+                                              >
+                                                No lessons yet
+                                              </p>
+                                            ) : (
+                                              (habit.lessons || []).map(
+                                                (lesson, lIdx) => {
+                                                  const isDone =
+                                                    lesson.status ===
+                                                    "completed";
+                                                  return (
                                                     <div
+                                                      key={lesson.id ?? lIdx}
                                                       style={{
+                                                        background: isDone
+                                                          ? T.greenBg
+                                                          : T.card,
+                                                        borderRadius: 14,
+                                                        border: `1px solid ${isDone ? T.greenLt : T.border}`,
+                                                        padding: "12px 14px",
                                                         display: "flex",
                                                         alignItems: "center",
-                                                        gap: 12,
-                                                        flex: 1,
-                                                        minWidth: 0,
+                                                        justifyContent:
+                                                          "space-between",
+                                                        gap: 10,
                                                       }}
                                                     >
                                                       <div
                                                         style={{
-                                                          width: 32,
-                                                          height: 32,
-                                                          borderRadius: 10,
-                                                          flexShrink: 0,
-                                                          background: isDone
-                                                            ? "#fff"
-                                                            : "#f1f0ee",
-                                                          border: `1px solid ${isDone ? T.greenLt : T.border}`,
                                                           display: "flex",
                                                           alignItems: "center",
-                                                          justifyContent:
-                                                            "center",
+                                                          gap: 12,
+                                                          flex: 1,
+                                                          minWidth: 0,
                                                         }}
                                                       >
-                                                        {isDone ? (
-                                                          <CheckCircle
-                                                            size={15}
-                                                            style={{
-                                                              color: T.green,
-                                                            }}
-                                                          />
-                                                        ) : (
-                                                          <span
-                                                            style={{
-                                                              fontSize: 11,
-                                                              fontWeight: 700,
-                                                              color: T.sec,
-                                                            }}
-                                                          >
-                                                            {lIdx + 1}
-                                                          </span>
-                                                        )}
+                                                        <div
+                                                          style={{
+                                                            width: 32,
+                                                            height: 32,
+                                                            borderRadius: 10,
+                                                            flexShrink: 0,
+                                                            background: isDone
+                                                              ? "#fff"
+                                                              : "#f1f0ee",
+                                                            border: `1px solid ${isDone ? T.greenLt : T.border}`,
+                                                            display: "flex",
+                                                            alignItems:
+                                                              "center",
+                                                            justifyContent:
+                                                              "center",
+                                                          }}
+                                                        >
+                                                          {isDone ? (
+                                                            <CheckCircle
+                                                              size={15}
+                                                              style={{
+                                                                color: T.green,
+                                                              }}
+                                                            />
+                                                          ) : (
+                                                            <span
+                                                              style={{
+                                                                fontSize: 11,
+                                                                fontWeight: 700,
+                                                                color: T.sec,
+                                                              }}
+                                                            >
+                                                              {lIdx + 1}
+                                                            </span>
+                                                          )}
+                                                        </div>
+                                                        <p
+                                                          style={{
+                                                            fontSize: 13,
+                                                            fontWeight: isDone
+                                                              ? 500
+                                                              : 600,
+                                                            color: isDone
+                                                              ? T.sec
+                                                              : T.pri,
+                                                            textDecoration:
+                                                              isDone
+                                                                ? "line-through"
+                                                                : "none",
+                                                            overflow: "hidden",
+                                                            textOverflow:
+                                                              "ellipsis",
+                                                            whiteSpace: "nowrap",
+                                                          }}
+                                                        >
+                                                          {lesson.title ||
+                                                            `Lesson ${lIdx + 1}`}
+                                                        </p>
                                                       </div>
-                                                      <p
+                                                      <button
+                                                        onClick={() =>
+                                                          openTeachingModal(
+                                                            lesson,
+                                                            habit,
+                                                            cls
+                                                          )
+                                                        }
                                                         style={{
-                                                          fontSize: 13,
-                                                          fontWeight: isDone
-                                                            ? 500
-                                                            : 600,
-                                                          color: isDone
-                                                            ? T.sec
-                                                            : T.pri,
-                                                          textDecoration: isDone
-                                                            ? "line-through"
+                                                          flexShrink: 0,
+                                                          display: "flex",
+                                                          alignItems: "center",
+                                                          gap: 6,
+                                                          padding: "9px 15px",
+                                                          borderRadius: 10,
+                                                          border: isDone
+                                                            ? `1.5px solid ${T.green}`
                                                             : "none",
-                                                          overflow: "hidden",
-                                                          textOverflow:
-                                                            "ellipsis",
+                                                          cursor: "pointer",
+                                                          fontSize: 12,
+                                                          fontWeight: 700,
+                                                          background: isDone
+                                                            ? "#fff"
+                                                            : T.green,
+                                                          color: isDone
+                                                            ? T.green
+                                                            : "#fff",
+                                                          boxShadow: isDone
+                                                            ? "none"
+                                                            : "0 3px 10px rgba(22,163,74,0.28)",
+                                                          transition:
+                                                            "all 0.15s",
                                                           whiteSpace: "nowrap",
                                                         }}
                                                       >
-                                                        {lesson.title ||
-                                                          `Lesson ${lIdx + 1}`}
-                                                      </p>
+                                                        <PlayCircle size={14} />
+                                                        {isDone
+                                                          ? "Review"
+                                                          : "Teach"}
+                                                      </button>
                                                     </div>
-                                                    <button
-                                                      onClick={() =>
-                                                        openTeachingModal(
-                                                          lesson,
-                                                          habit,
-                                                          cls,
-                                                        )
-                                                      }
-                                                      style={{
-                                                        flexShrink: 0,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: 6,
-                                                        padding: "9px 15px",
-                                                        borderRadius: 10,
-                                                        border: isDone
-                                                          ? `1.5px solid ${T.green}`
-                                                          : "none",
-                                                        cursor: "pointer",
-                                                        fontSize: 12,
-                                                        fontWeight: 700,
-                                                        background: isDone
-                                                          ? "#fff"
-                                                          : T.green,
-                                                        color: isDone
-                                                          ? T.green
-                                                          : "#fff",
-                                                        boxShadow: isDone
-                                                          ? "none"
-                                                          : "0 3px 10px rgba(22,163,74,0.28)",
-                                                        transition: "all 0.15s",
-                                                        whiteSpace: "nowrap",
-                                                      }}
-                                                    >
-                                                      <PlayCircle size={14} />
-                                                      {isDone
-                                                        ? "Review"
-                                                        : "Teach"}
-                                                    </button>
-                                                  </div>
-                                                );
-                                              },
-                                            )
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                                                  );
+                                                }
+                                              )
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* ════════════════════════════════════════════════════════════
@@ -1064,16 +1179,13 @@ const TeacherDashboard = () => {
                     <div
                       style={{
                         display: "flex",
-                        alignItems:
-                          "flex-start" /* Changed from center so the X button stays at the top if text wraps */,
+                        alignItems: "flex-start",
                         justifyContent: "space-between",
-                        padding:
-                          "16px 18px" /* Gave it a tiny bit more breathing room */,
+                        padding: "16px 18px",
                         borderBottom: `1px solid ${T.border}`,
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* Title */}
                         <p
                           style={{
                             fontSize: 18,
@@ -1084,8 +1196,6 @@ const TeacherDashboard = () => {
                         >
                           {lesson.title}
                         </p>
-
-                        {/* Metadata */}
                         <p
                           style={{
                             fontSize: 11,
@@ -1099,29 +1209,22 @@ const TeacherDashboard = () => {
                           Class {cls.class_number}
                           {cls.section} · {habit.name}
                         </p>
-
-                        {/* Description */}
                         {lesson.description && (
                           <p
                             style={{
-                              fontSize: 14 /* Larger, readable size */,
-                              color:
-                                "#57534e" /* Slightly darker than T.sec for contrast */,
-                              marginTop: 10 /* Distinct separation from metadata */,
-                              lineHeight: 1.5 /* Better vertical spacing for wrapping text */,
-                              fontWeight: 400 /* Normal weight */,
-                              fontFamily:
-                                "Georgia, serif" /* Changed font family for a distinct look */,
-                              whiteSpace:
-                                "normal" /* Ensures it wraps properly */,
+                              fontSize: 14,
+                              color: "#57534e",
+                              marginTop: 10,
+                              lineHeight: 1.5,
+                              fontWeight: 400,
+                              fontFamily: "Georgia, serif",
+                              whiteSpace: "normal",
                             }}
                           >
                             {lesson.description}
                           </p>
                         )}
                       </div>
-
-                      {/* Close Button */}
                       <button
                         onClick={closeModal}
                         style={{
@@ -1175,7 +1278,8 @@ const TeacherDashboard = () => {
                             transition: "all 0.15s",
                             background:
                               activeTab === "material" ? T.blue : T.card,
-                            color: activeTab === "material" ? "#fff" : T.sec,
+                            color:
+                              activeTab === "material" ? "#fff" : T.sec,
                             boxShadow:
                               activeTab === "material"
                                 ? "none"
@@ -1207,7 +1311,8 @@ const TeacherDashboard = () => {
                             transition: "all 0.15s",
                             background:
                               activeTab === "guide" ? T.orange : T.card,
-                            color: activeTab === "guide" ? "#fff" : T.sec,
+                            color:
+                              activeTab === "guide" ? "#fff" : T.sec,
                             boxShadow:
                               activeTab === "guide"
                                 ? "none"
@@ -1605,7 +1710,6 @@ const TeacherDashboard = () => {
                                 transition: "all 0.15s",
                               }}
                             >
-                              {/* Custom radio */}
                               <div
                                 style={{
                                   width: 20,
@@ -1686,7 +1790,8 @@ const TeacherDashboard = () => {
                   fontSize: 16,
                   fontWeight: 800,
                   boxShadow: "0 5px 20px rgba(22,163,74,0.35)",
-                  opacity: isSubmitting || questions.length === 0 ? 0.5 : 1,
+                  opacity:
+                    isSubmitting || questions.length === 0 ? 0.5 : 1,
                   transition: "all 0.15s",
                 }}
               >
